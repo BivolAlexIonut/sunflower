@@ -17,8 +17,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raylib)
 
-add_executable(sunflower src/main.cpp)
+add_executable(sunflower
+    src/main.cpp
+    src/player.cpp
+    src/tilemap.cpp
+)
 target_link_libraries(sunflower PRIVATE raylib)
+
+# Copiază folderul cu sprite-uri lângă executabil, ca path-urile relative să meargă.
+add_custom_command(TARGET sunflower POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/sprites
+        $<TARGET_FILE_DIR:sunflower>/sprites
+)
 
 # pe Windows, fereastră de joc fără consolă în spate (doar pe Release)
 if(WIN32)
