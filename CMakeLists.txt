@@ -21,9 +21,6 @@ add_executable(sunflower
     src/main.cpp
     src/player.cpp
     src/tilemap.cpp
-    src/farm.cpp
-    src/inventory.cpp
-    src/shop.cpp
 )
 target_link_libraries(sunflower PRIVATE raylib)
 
