@@ -15,6 +15,8 @@ public:
     Vector2 position{ 0, 0 };   // centrul personajului, în coordonate de lume
     float speed = 140.0f;       // pixeli/secundă
 
+    Dir facing() const { return dir; }
+
 private:
     // textures[stare][directie] — fiecare e un spritesheet de 8 frame-uri pe orizontală
     Texture2D textures[2][4]{};
