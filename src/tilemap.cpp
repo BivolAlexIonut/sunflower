@@ -24,11 +24,11 @@ void TileMap::Draw(const Camera2D& cam) const {
     if (x1 > Width)  x1 = Width;
     if (y1 > Height) y1 = Height;
 
-    // câteva nuanțe de verde între care alegem pe baza hash-ului
+    // nuanțe de verde apropiate de tileset-ul Happy Harvest (50,150,90)
     const Color greens[3] = {
-        Color{ 120, 190,  95, 255 },
-        Color{ 130, 200, 100, 255 },
-        Color{ 112, 182,  88, 255 },
+        Color{ 50, 150, 90, 255 },
+        Color{ 56, 158, 96, 255 },
+        Color{ 44, 140, 82, 255 },
     };
 
     for (int y = y0; y < y1; y++) {
@@ -41,7 +41,7 @@ void TileMap::Draw(const Camera2D& cam) const {
             if (h % 7 == 0) {
                 int px = x * TileSize + (int)(h % TileSize);
                 int py = y * TileSize + (int)((h / 7) % TileSize);
-                DrawRectangle(px, py, 3, 5, Color{ 90, 150, 70, 255 });
+                DrawRectangle(px, py, 3, 5, Color{ 38, 120, 70, 255 });
             }
         }
     }

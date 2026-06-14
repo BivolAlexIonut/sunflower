@@ -1,9 +1,8 @@
-// Personajul jucabil — mișcare pe 4 direcții, animat (idle / run).
+// Personajul jucabil (pachetul Happy Harvest) — mers animat pe 4 direcții.
 #pragma once
 #include "raylib.h"
 
 enum class Dir { Down, Up, Left, Right };
-enum class AnimState { Idle, Run };
 
 class Player {
 public:
@@ -13,25 +12,21 @@ public:
     void Draw() const;
 
     Vector2 position{ 0, 0 };   // centrul personajului, în coordonate de lume
-    float speed = 140.0f;       // pixeli/secundă
+    float speed = 130.0f;
 
     Dir facing() const { return dir; }
 
 private:
-    // textures[stare][directie] — fiecare e un spritesheet de 8 frame-uri pe orizontală
-    Texture2D textures[2][4]{};
+    Texture2D walk{};           // Player_Walk.png: 4 frame-uri x 3 rânduri (jos/lateral/sus)
 
     Dir dir = Dir::Down;
-    AnimState state = AnimState::Idle;
-
+    bool moving = false;
     int frame = 0;
     float frameTimer = 0.0f;
 
-    static constexpr int FrameW = 96;
-    static constexpr int FrameH = 80;
-    static constexpr int FrameCount = 8;
-    static constexpr float Scale = 2.0f;        // mărim sprite-ul ca să fie vizibil
-    static constexpr float FrameTime = 0.10f;   // secunde per frame de animație
-
-    const Texture2D& CurrentSheet() const;
+    static constexpr int FrameW = 32;
+    static constexpr int FrameH = 32;
+    static constexpr int FrameCount = 4;
+    static constexpr float Scale = 1.6f;
+    static constexpr float FrameTime = 0.12f;
 };

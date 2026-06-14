@@ -18,7 +18,7 @@ public:
     Farm();
 
     void Update(float dt);
-    void DrawGround(const Camera2D& cam, const Texture2D& plants) const;
+    void DrawGround(const Camera2D& cam, const Texture2D& plants, const Texture2D& soil) const;
     void DrawTargetHighlight(int tx, int ty) const;
 
     // Acțiunea contextuală pe parcela țintă (sapă / plantează / recoltează).

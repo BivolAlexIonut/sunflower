@@ -5,9 +5,9 @@
 
 class TileMap {
 public:
-    static constexpr int TileSize = 32;
-    static constexpr int Width  = 64;   // tile-uri pe orizontală
-    static constexpr int Height = 48;   // tile-uri pe verticală
+    static constexpr int TileSize = 48;  // = dimensiunea nativă a tile-urilor Happy Harvest
+    static constexpr int Width  = 40;    // tile-uri pe orizontală
+    static constexpr int Height = 30;    // tile-uri pe verticală
 
     void Draw(const Camera2D& cam) const;
 

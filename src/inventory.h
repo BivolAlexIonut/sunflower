@@ -8,10 +8,11 @@ public:
     void Draw(const Texture2D& plants) const;
 
     bool ConsumeSeed();     // true dacă exista cel puțin o sămânță
-    void AddHarvest();      // recoltă: +1 floare, +2 semințe noi
+    void AddHarvest();      // recoltă: +1 floare (se vinde la magazin)
 
-    int seeds = 10;
+    int seeds = 3;          // câteva semințe de start
     int sunflowers = 0;
+    int money = 50;         // banii de start
 
 private:
     int selected = 0;       // 0 = semințe, 1 = flori

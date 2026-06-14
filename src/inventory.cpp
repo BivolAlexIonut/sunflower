@@ -17,8 +17,7 @@ bool Inventory::ConsumeSeed() {
 }
 
 void Inventory::AddHarvest() {
-    sunflowers += 1;
-    seeds += 2;     // fiecare floare dă semințe noi → economia crește singură
+    sunflowers += 1;    // floarea se vinde la magazin pentru bani
 }
 
 void Inventory::Draw(const Texture2D& plants) const {

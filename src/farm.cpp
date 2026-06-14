@@ -60,7 +60,7 @@ void Farm::Interact(int tx, int ty, Inventory& inv) {
     }
 }
 
-void Farm::DrawGround(const Camera2D& cam, const Texture2D& plants) const {
+void Farm::DrawGround(const Camera2D& cam, const Texture2D& plants, const Texture2D& soil) const {
     const int TS = TileMap::TileSize;
 
     // culling: doar tile-urile vizibile
@@ -72,19 +72,20 @@ void Farm::DrawGround(const Camera2D& cam, const Texture2D& plants) const {
     if (x1 > TileMap::Width)  x1 = TileMap::Width;
     if (y1 > TileMap::Height) y1 = TileMap::Height;
 
-    // 1) pământul săpat (sub culturi)
+    // 1) pământul săpat (sub culturi) — tile-ul din tileset
+    Rectangle soilSrc{ 0, 0, (float)soil.width, (float)soil.height };
     for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
             const Cell& c = cells[Idx(x, y)];
             if (c.plot == Plot::Soil || c.plot == Plot::Crop) {
-                DrawRectangle(x * TS + 1, y * TS + 1, TS - 2, TS - 2, Color{ 110, 75, 45, 255 });
-                DrawRectangleLines(x * TS + 1, y * TS + 1, TS - 2, TS - 2, Color{ 80, 52, 30, 255 });
+                Rectangle dst{ (float)(x * TS), (float)(y * TS), (float)TS, (float)TS };
+                DrawTexturePro(soil, soilSrc, dst, { 0, 0 }, 0.0f, WHITE);
             }
         }
     }
 
     // 2) culturile (desenate bottom-anchored ca să "crească" din pământ)
-    const float scale = 1.5f;
+    const float scale = 2.0f;
     for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
             const Cell& c = cells[Idx(x, y)];
