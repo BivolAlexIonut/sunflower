@@ -2,10 +2,10 @@
 #include <string>
 
 const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
-    { "Floare alba",      10,  25, 3.0f },
-    { "Floare roz",       40,  90, 4.0f },
-    { "Floare rosie",    120, 280, 5.0f },
-    { "Floarea-soarelui", 400, 950, 7.0f },
+    { "Floare alba",      10,  25, 3.0f,    0 },
+    { "Floare roz",       40,  90, 4.0f,  150 },
+    { "Floare rosie",    120, 280, 5.0f,  600 },
+    { "Floarea-soarelui", 400, 950, 7.0f, 3000 },
 };
 
 // Dreptunghiuri sursă în FG_Grass_Summer.png (16x16): floarea mare (matură) per culoare.

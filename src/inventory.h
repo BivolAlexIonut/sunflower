@@ -11,6 +11,7 @@ struct FlowerInfo {
     int   seedCost;     // preț sămânță la magazin
     int   sellPrice;    // preț de vânzare floare
     float growTime;     // secunde per stadiu de creștere
+    int   unlockCost;   // cât costă deblocarea acestui tip (0 = de la start)
 };
 
 // Indexat după enum Flower.

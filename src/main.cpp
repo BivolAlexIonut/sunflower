@@ -6,6 +6,7 @@
 #include "tilemap.h"
 #include "farm.h"
 #include "inventory.h"
+#include "shop.h"
 #include <vector>
 #include <cmath>
 
@@ -33,6 +34,7 @@ int main() {
     TileMap map;       map.Load();
     Farm farm;         farm.Load();
     Inventory inventory;
+    Shop shop;
     Player player;     player.Load("Character01");
     player.position = { map.WorldWidth() / 2, map.WorldHeight() / 2 };
 
@@ -67,6 +69,23 @@ int main() {
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
+
+        shop.HandleInput(inventory, player);
+
+        // cât e un meniu deschis, jocul e înghețat
+        if (shop.BlocksGameplay()) {
+            BeginDrawing();
+            ClearBackground(Color{ 60, 130, 60, 255 });
+            BeginMode2D(camera);
+            map.Draw(camera);
+            farm.DrawGround(camera);
+            player.Draw();
+            EndMode2D();
+            inventory.Draw(flowerTex, iconTex);
+            shop.Draw(inventory, flowerTex, iconTex);
+            EndDrawing();
+            continue;
+        }
 
         if (IsKeyPressed(KEY_Q)) inventory.CycleSeed();
 
@@ -125,8 +144,9 @@ int main() {
 
         // HUD
         inventory.Draw(flowerTex, iconTex);
-        DrawText("WASD misca | E sapa/planteaza/uda/recolteaza | Q schimba samanta",
-                 16, screenH - 28, 18, Color{ 255, 255, 255, 220 });
+        DrawText("WASD misca | E sapa/planteaza/uda/recolteaza | Q samanta | TAB magazin | K skin-uri",
+                 16, screenH - 28, 17, Color{ 255, 255, 255, 220 });
+        shop.Draw(inventory, flowerTex, iconTex);
         DrawFPS(screenW - 90, 16);
 
         EndDrawing();
