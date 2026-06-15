@@ -23,7 +23,7 @@ public:
 
     void Update(float dt);
     void DrawGround(const Camera2D& cam) const;
-    void DrawTargetHighlight(int tx, int ty) const;
+    void DrawTargetHighlight(int tx, int ty, bool inRange) const;
 
     // Acțiune contextuală pe parcela țintă; declanșează animația de unealtă potrivită.
     void Interact(int tx, int ty, Inventory& inv, Player& player);

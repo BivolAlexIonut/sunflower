@@ -36,6 +36,12 @@ void Player::Unload() {
     UnloadTexture(tex[(int)Action::Dead][0]);   // încărcat o singură dată
 }
 
+void Player::FaceTo(Vector2 t) {
+    float dx = t.x - position.x, dy = t.y - position.y;
+    if (fabsf(dx) > fabsf(dy)) dir = (dx > 0) ? Dir::Right : Dir::Left;
+    else                       dir = (dy > 0) ? Dir::Down : Dir::Up;
+}
+
 void Player::StartAction(Action a) {
     if (acting) return;             // nu întrerupem o animație în curs
     action = a;

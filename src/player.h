@@ -24,6 +24,7 @@ public:
     Vector2 position{ 0, 0 };       // centrul personajului, coordonate de lume
     float speed = 110.0f;
     Dir facing() const { return dir; }
+    void FaceTo(Vector2 worldTarget);   // orientează personajul spre o țintă
 
 private:
     std::string name;

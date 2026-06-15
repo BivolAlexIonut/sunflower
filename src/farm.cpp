@@ -104,9 +104,11 @@ void Farm::DrawGround(const Camera2D& cam) const {
     }
 }
 
-void Farm::DrawTargetHighlight(int tx, int ty) const {
+void Farm::DrawTargetHighlight(int tx, int ty, bool inRange) const {
     if (!InBounds(tx, ty)) return;
     const int TS = TileMap::TileSize;
-    DrawRectangleLinesEx(Rectangle{ (float)(tx*TS), (float)(ty*TS), (float)TS, (float)TS },
-                         2.0f, Color{ 255, 255, 255, 180 });
+    Color c = inRange ? Color{ 255, 255, 255, 200 } : Color{ 230, 70, 70, 160 };
+    Rectangle r{ (float)(tx*TS), (float)(ty*TS), (float)TS, (float)TS };
+    if (inRange) DrawRectangleRec(r, Color{ 255, 255, 255, 35 });
+    DrawRectangleLinesEx(r, 2.0f, c);
 }

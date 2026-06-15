@@ -1,11 +1,10 @@
 #include "tilemap.h"
 #include <cmath>
 
-// Tile-uri de umplere solidă găsite în atlas (16x16, pixeli sursă).
-static const Rectangle kGrass[3] = {
-    { 304, 16, 16, 16 },   // verde deschis
-    { 400, 16, 16, 16 },   // verde mai închis
-    { 304, 80, 16, 16 },   // verde cu textură ușoară
+// Tile-uri de iarbă texturată din atlas (16x16) — se repetă fără cusături.
+static const Rectangle kGrass[2] = {
+    { 304, 80, 16, 16 },   // iarbă texturată (principală)
+    { 400, 80, 16, 16 },   // variantă ușor mai închisă (rar)
 };
 
 static unsigned int TileHash(int x, int y) {
@@ -35,8 +34,7 @@ void TileMap::Draw(const Camera2D& cam) const {
     for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
             unsigned int h = TileHash(x, y);
-            // mai ales verde deschis, ocazional celelalte variante
-            int v = (h % 6 == 0) ? 1 : (h % 11 == 0) ? 2 : 0;
+            int v = (h % 9 == 0) ? 1 : 0;   // rar varianta mai închisă
             Rectangle src = kGrass[v];
             Rectangle dst{ (float)(x * TileSize), (float)(y * TileSize),
                            (float)TileSize, (float)TileSize };

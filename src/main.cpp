@@ -12,18 +12,6 @@
 
 struct Tree { Vector2 pos; int variant; };
 
-static void TargetTile(const Player& p, int& tx, int& ty) {
-    int px = (int)(p.position.x / TileMap::TileSize);
-    int py = (int)(p.position.y / TileMap::TileSize);
-    switch (p.facing()) {
-        case Dir::Down:  py += 1; break;
-        case Dir::Up:    py -= 1; break;
-        case Dir::Left:  px -= 1; break;
-        case Dir::Right: px += 1; break;
-    }
-    tx = px; ty = py;
-}
-
 int main() {
     const int screenW = 960, screenH = 540;
     InitWindow(screenW, screenH, "Gradina Florii-Soarelui");
@@ -104,49 +92,45 @@ int main() {
     camera.offset = { screenW / 2.0f, screenH / 2.0f };
     camera.zoom = 1.7f;
 
+    const int TS = TileMap::TileSize;
+    const float reach = 2.6f * TS;   // cât de departe poate lucra jucătorul
+
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
 
         shop.HandleInput(inventory, player);
+        bool frozen = shop.BlocksGameplay();
 
-        // cât e un meniu deschis, jocul e înghețat
-        if (shop.BlocksGameplay()) {
-            BeginDrawing();
-            ClearBackground(Color{ 60, 130, 60, 255 });
-            BeginMode2D(camera);
-            map.Draw(camera);
-            farm.DrawGround(camera);
-            player.Draw();
-            EndMode2D();
-            inventory.Draw(flowerTex, iconTex);
-            shop.Draw(inventory, flowerTex, iconTex);
-            EndDrawing();
-            continue;
+        // tile-ul țintit cu mausul + dacă e în raza de lucru
+        Vector2 mw = GetScreenToWorld2D(GetMousePosition(), camera);
+        int tx = (int)floorf(mw.x / TS), ty = (int)floorf(mw.y / TS);
+        Vector2 tileCenter{ tx * TS + TS / 2.0f, ty * TS + TS / 2.0f };
+        float dx = tileCenter.x - player.position.x, dy = tileCenter.y - player.position.y;
+        bool inRange = (dx*dx + dy*dy) <= reach*reach;
+
+        if (!frozen) {
+            // schimbă floarea de plantat: rotița mausului sau Q
+            if (GetMouseWheelMove() != 0 || IsKeyPressed(KEY_Q)) inventory.CycleSeed();
+
+            Vector2 prev = player.position;
+            player.Update(dt);
+
+            Vector2 feet{ player.position.x, player.position.y + 22 };
+            if (treeBlocks(feet)) player.position = prev;
+
+            if (player.position.x < 16) player.position.x = 16;
+            if (player.position.y < 16) player.position.y = 16;
+            if (player.position.x > map.WorldWidth() - 16)  player.position.x = map.WorldWidth() - 16;
+            if (player.position.y > map.WorldHeight() - 16) player.position.y = map.WorldHeight() - 16;
+
+            farm.Update(dt);
+
+            // click stânga pe un tile din rază → sapă / plantează / udă / recoltează
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange && !player.IsBusy()) {
+                player.FaceTo(tileCenter);
+                farm.Interact(tx, ty, inventory, player);
+            }
         }
-
-        if (IsKeyPressed(KEY_Q)) inventory.CycleSeed();
-
-        Vector2 prev = player.position;
-        player.Update(dt);
-
-        // coliziuni: picioarele personajului ~ puțin sub centru
-        Vector2 feet{ player.position.x, player.position.y + 22 };
-        if (treeBlocks(feet)) player.position = prev;
-
-        // limite hartă
-        if (player.position.x < 16) player.position.x = 16;
-        if (player.position.y < 16) player.position.y = 16;
-        if (player.position.x > map.WorldWidth() - 16)  player.position.x = map.WorldWidth() - 16;
-        if (player.position.y > map.WorldHeight() - 16) player.position.y = map.WorldHeight() - 16;
-
-        farm.Update(dt);
-
-        int tx, ty;
-        TargetTile(player, tx, ty);
-
-        // acțiune contextuală: sapă / plantează / udă / recoltează
-        if (IsKeyPressed(KEY_E) && !player.IsBusy())
-            farm.Interact(tx, ty, inventory, player);
 
         camera.target.x += (player.position.x - camera.target.x) * 10.0f * dt;
         camera.target.y += (player.position.y - camera.target.y) * 10.0f * dt;
@@ -157,20 +141,17 @@ int main() {
         BeginMode2D(camera);
         map.Draw(camera);
 
-        // cărarea de pământ (sub fermă și decor)
         for (const Vector2& p : path)
             DrawTexturePro(groundTex, pathTile,
-                Rectangle{ p.x*32, p.y*32, 32, 32 }, {0,0}, 0, WHITE);
+                Rectangle{ p.x*TS, p.y*TS, (float)TS, (float)TS }, {0,0}, 0, WHITE);
 
         farm.DrawGround(camera);
-        farm.DrawTargetHighlight(tx, ty);
+        if (!frozen) farm.DrawTargetHighlight(tx, ty, inRange);
 
-        // flori decorative (ground level, sub jucător)
         for (const Deco& d : deco)
             DrawTexturePro(flowerTex, Rectangle{ d.variant*16.0f, 0, 16, 16 },
                 Rectangle{ d.pos.x, d.pos.y, 24, 24 }, {12,24}, 0, WHITE);
 
-        // cufărul-market + copacii + jucătorul, sortați după Y
         float pFeet = player.position.y + 22;
         auto drawTree = [&](const Tree& t){
             DrawTexturePro(treeTex, Rectangle{ t.variant*64.0f, 0, 64, 80 },
@@ -189,12 +170,10 @@ int main() {
         for (const Tree& t : trees) if (t.pos.y > pFeet) drawTree(t);
         EndMode2D();
 
-        // HUD
+        // HUD minimal: bani + hotbar (restul se explică în meniu)
         inventory.Draw(flowerTex, iconTex);
-        DrawText("WASD misca | E sapa/planteaza/uda/recolteaza | Q samanta | TAB magazin | K skin-uri",
-                 16, screenH - 28, 17, Color{ 255, 255, 255, 220 });
+        DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
         shop.Draw(inventory, flowerTex, iconTex);
-        DrawFPS(screenW - 90, 16);
 
         EndDrawing();
     }

@@ -39,7 +39,6 @@ void Inventory::Draw(const Texture2D& flowers, const Texture2D& icons) const {
     Rectangle src = kFlowerBig[selectedSeed];
     DrawTexturePro(flowers, src, Rectangle{ x0 + 12.0f, y0 + 8.0f, 40, 40 }, { 0, 0 }, 0.0f, WHITE);
     DrawText(TextFormat("x%d", seeds[selectedSeed]), x0 + 6, y0 + slot - 20, 18, WHITE);
-    DrawText("Q", x0 + slot - 16, y0 + 2, 16, Color{ 255, 255, 255, 180 });
 
     // numele florii selectate + câte are recoltate
     DrawText(FLOWERS[selectedSeed].name, x0 + slot + 12, y0 + 8, 18, WHITE);
