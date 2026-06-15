@@ -41,17 +41,54 @@ int main() {
     Texture2D treeTex   = LoadTexture("sprites/Objects/FG_Tree_Summer.png");
     Texture2D iconTex   = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
     Texture2D flowerTex = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
+    Texture2D groundTex = LoadTexture("sprites/Tilesets/FG_Grounds.png");
+    Texture2D chestTex  = LoadTexture("sprites/Objects/FG_Treasure_Big.png");
 
-    // Copaci pe marginile hărții (decor + obstacole). variant 0..3 din sheet (64x80).
+    auto hash = [](int a, int b) -> unsigned int {
+        unsigned int h = (unsigned int)(a*73856093) ^ (unsigned int)(b*19349663);
+        h ^= h>>13; h *= 0x5bd1e995; h ^= h>>15; return h;
+    };
+
+    // Zona centrală de fermă rămâne liberă; copacii și decorul stau în jur.
+    const int cx0 = 8, cy0 = 7, cx1 = TileMap::Width - 8, cy1 = TileMap::Height - 7;
+    auto inFarmArea = [&](int tx, int ty) {
+        return tx >= cx0 && tx < cx1 && ty >= cy0 && ty < cy1;
+    };
+
+    // Copaci așezați natural pe marginea hărții (cu jitter), nu în zona de fermă.
     std::vector<Tree> trees;
-    for (int x = 2; x < TileMap::Width - 2; x += 3) {
-        trees.push_back({ { x * 32.0f + 16, 1 * 32.0f + 64 }, (x) % 4 });
-        trees.push_back({ { x * 32.0f + 16, (TileMap::Height - 2) * 32.0f + 64 }, (x + 1) % 4 });
+    for (int ty = 1; ty < TileMap::Height - 1; ty++) {
+        for (int tx = 1; tx < TileMap::Width - 1; tx++) {
+            if (inFarmArea(tx, ty)) continue;
+            unsigned int h = hash(tx, ty);
+            if (h % 5 != 0) continue;                       // densitate
+            float jx = (float)((h >> 4) % 16) - 8;
+            float jy = (float)((h >> 8) % 16) - 8;
+            trees.push_back({ { tx*32.0f + 16 + jx, ty*32.0f + 64 + jy }, (int)(h % 4) });
+        }
     }
-    for (int y = 3; y < TileMap::Height - 3; y += 3) {
-        trees.push_back({ { 1 * 32.0f + 16, y * 32.0f + 64 }, y % 4 });
-        trees.push_back({ { (TileMap::Width - 2) * 32.0f + 16, y * 32.0f + 64 }, (y + 1) % 4 });
+
+    // Flori decorative (vizuale) pe marginea zonei, ca să nu fie pustiu.
+    struct Deco { Vector2 pos; int variant; };
+    std::vector<Deco> deco;
+    for (int ty = 1; ty < TileMap::Height - 1; ty++) {
+        for (int tx = 1; tx < TileMap::Width - 1; tx++) {
+            if (inFarmArea(tx, ty)) continue;
+            unsigned int h = hash(tx*7+1, ty*13+3);
+            if (h % 6 != 0) continue;
+            deco.push_back({ { tx*32.0f + 8 + (float)(h%16), ty*32.0f + 8 + (float)((h>>4)%16) },
+                             (int)(h % 4) });
+        }
     }
+
+    // Cărare de pământ (vizuală) din zona de fermă spre margini.
+    std::vector<Vector2> path;
+    int pcx = TileMap::Width/2, pcy = TileMap::Height/2;
+    for (int x = 2; x < TileMap::Width-2; x++)  path.push_back({ (float)x, (float)pcy });
+    for (int y = 2; y < TileMap::Height-2; y++) path.push_back({ (float)pcx, (float)y });
+
+    Vector2 chestPos = { (cx0 - 1) * 32.0f, (pcy) * 32.0f };   // "market" lângă fermă
+    Rectangle pathTile{ 80, 16, 16, 16 };                       // pământ auriu
 
     auto treeBlocks = [&](Vector2 feet) -> bool {
         for (const Tree& t : trees) {
@@ -119,27 +156,37 @@ int main() {
 
         BeginMode2D(camera);
         map.Draw(camera);
+
+        // cărarea de pământ (sub fermă și decor)
+        for (const Vector2& p : path)
+            DrawTexturePro(groundTex, pathTile,
+                Rectangle{ p.x*32, p.y*32, 32, 32 }, {0,0}, 0, WHITE);
+
         farm.DrawGround(camera);
         farm.DrawTargetHighlight(tx, ty);
 
-        // copacii + jucătorul sortați după Y (cine e mai jos se desenează peste)
-        std::vector<float> ys;
-        // desenăm copacii care sunt deasupra jucătorului întâi
-        for (const Tree& t : trees) {
-            if (t.pos.y <= player.position.y + 22) {
-                Rectangle src{ t.variant * 64.0f, 0, 64, 80 };
-                DrawTexturePro(treeTex, src,
-                    Rectangle{ t.pos.x, t.pos.y, 64, 80 }, { 32, 80 }, 0, WHITE);
-            }
-        }
+        // flori decorative (ground level, sub jucător)
+        for (const Deco& d : deco)
+            DrawTexturePro(flowerTex, Rectangle{ d.variant*16.0f, 0, 16, 16 },
+                Rectangle{ d.pos.x, d.pos.y, 24, 24 }, {12,24}, 0, WHITE);
+
+        // cufărul-market + copacii + jucătorul, sortați după Y
+        float pFeet = player.position.y + 22;
+        auto drawTree = [&](const Tree& t){
+            DrawTexturePro(treeTex, Rectangle{ t.variant*64.0f, 0, 64, 80 },
+                Rectangle{ t.pos.x, t.pos.y, 64, 80 }, { 32, 80 }, 0, WHITE);
+        };
+        for (const Tree& t : trees) if (t.pos.y <= pFeet) drawTree(t);
+        if (chestPos.y <= pFeet)
+            DrawTexturePro(chestTex, Rectangle{0,0,64,32},
+                Rectangle{ chestPos.x, chestPos.y, 64, 32 }, {32,32}, 0, WHITE);
+
         player.Draw();
-        for (const Tree& t : trees) {
-            if (t.pos.y > player.position.y + 22) {
-                Rectangle src{ t.variant * 64.0f, 0, 64, 80 };
-                DrawTexturePro(treeTex, src,
-                    Rectangle{ t.pos.x, t.pos.y, 64, 80 }, { 32, 80 }, 0, WHITE);
-            }
-        }
+
+        if (chestPos.y > pFeet)
+            DrawTexturePro(chestTex, Rectangle{0,0,64,32},
+                Rectangle{ chestPos.x, chestPos.y, 64, 32 }, {32,32}, 0, WHITE);
+        for (const Tree& t : trees) if (t.pos.y > pFeet) drawTree(t);
         EndMode2D();
 
         // HUD
@@ -152,6 +199,8 @@ int main() {
         EndDrawing();
     }
 
+    UnloadTexture(chestTex);
+    UnloadTexture(groundTex);
     UnloadTexture(flowerTex);
     UnloadTexture(iconTex);
     UnloadTexture(treeTex);
