@@ -12,6 +12,7 @@ enum class Action { Walk, Hoe, Axe, Pickaxe, Sword, Watercan, Dead, COUNT };
 class Player {
 public:
     void Load(const std::string& character = "Character01");
+    void SetSkin(const std::string& character);   // schimbă caracterul (skin)
     void Unload();
     void Update(float dt);
     void Draw() const;

@@ -23,6 +23,12 @@ void Player::Load(const std::string& character) {
     for (int d = 0; d < 4; d++) tex[(int)Action::Dead][d] = dead;
 }
 
+void Player::SetSkin(const std::string& character) {
+    if (character == name) return;
+    Unload();
+    Load(character);
+}
+
 void Player::Unload() {
     for (int a = 0; a <= (int)Action::Watercan; a++)
         for (int d = 0; d < 4; d++)
