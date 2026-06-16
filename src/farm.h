@@ -2,6 +2,7 @@
 #pragma once
 #include "raylib.h"
 #include <vector>
+#include <iosfwd>
 
 class Inventory;
 class Player;
@@ -27,6 +28,9 @@ public:
 
     // Acțiune contextuală pe parcela țintă; declanșează animația de unealtă potrivită.
     void Interact(int tx, int ty, Inventory& inv, Player& player);
+
+    void Serialize(std::ostream&) const;
+    void Deserialize(std::istream&);
 
     static constexpr int MatureStage = 2;
 

@@ -3,6 +3,8 @@
 #include "inventory.h"
 #include "player.h"
 #include <cmath>
+#include <ostream>
+#include <istream>
 
 // Tile de pământ săpat din FG_Grounds.png (16x16).
 static const Rectangle kSoil = { 176, 80, 16, 16 };
@@ -72,6 +74,28 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 c.growth += FLOWERS[c.flower].growTime * 0.5f;
             }
             break;
+    }
+}
+
+void Farm::Serialize(std::ostream& o) const {
+    int n = 0;
+    for (const auto& c : cells) if (c.plot != Plot::Grass) n++;
+    o << n << "\n";
+    for (int i = 0; i < (int)cells.size(); i++) {
+        const Cell& c = cells[i];
+        if (c.plot == Plot::Grass) continue;
+        o << i << " " << (int)c.plot << " " << c.flower << " " << c.stage << " " << c.growth << "\n";
+    }
+}
+
+void Farm::Deserialize(std::istream& in) {
+    for (auto& c : cells) c = Cell{};
+    int n; in >> n;
+    for (int k = 0; k < n; k++) {
+        int i, p, fl, st; float g;
+        in >> i >> p >> fl >> st >> g;
+        if (i >= 0 && i < (int)cells.size())
+            cells[i] = Cell{ (Plot)p, fl, st, g };
     }
 }
 

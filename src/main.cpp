@@ -7,6 +7,7 @@
 #include "farm.h"
 #include "inventory.h"
 #include "shop.h"
+#include "saveio.h"
 #include <vector>
 #include <cmath>
 
@@ -16,8 +17,10 @@ int main() {
     const int screenW = 960, screenH = 540;
     InitWindow(screenW, screenH, "Gradina Florii-Soarelui");
     SetTargetFPS(60);
-    SetExitKey(KEY_ESCAPE);
+    SetExitKey(KEY_NULL);   // ESC închide meniul, nu jocul
     ChangeDirectory(GetApplicationDirectory());
+
+    const char* SAVE_PATH = "save.txt";
 
     TileMap map;       map.Load();
     Farm farm;         farm.Load();
@@ -87,6 +90,14 @@ int main() {
         return false;
     };
 
+    // încarcă progresul salvat (dacă există)
+    Vector2 loadedPos = player.position;
+    if (SaveIO::Load(SAVE_PATH, inventory, shop, farm, loadedPos)) {
+        player.position = loadedPos;
+        shop.ApplySkin(player);
+    }
+    float autosaveTimer = 0.0f;
+
     Camera2D camera{};
     camera.target = player.position;
     camera.offset = { screenW / 2.0f, screenH / 2.0f };
@@ -135,6 +146,13 @@ int main() {
         camera.target.x += (player.position.x - camera.target.x) * 10.0f * dt;
         camera.target.y += (player.position.y - camera.target.y) * 10.0f * dt;
 
+        // autosave la fiecare 20 secunde
+        autosaveTimer += dt;
+        if (autosaveTimer >= 20.0f) {
+            autosaveTimer = 0.0f;
+            SaveIO::Save(SAVE_PATH, inventory, shop, farm, player.position);
+        }
+
         BeginDrawing();
         ClearBackground(Color{ 60, 130, 60, 255 });
 
@@ -177,6 +195,9 @@ int main() {
 
         EndDrawing();
     }
+
+    // salvează la ieșire
+    SaveIO::Save(SAVE_PATH, inventory, shop, farm, player.position);
 
     UnloadTexture(chestTex);
     UnloadTexture(groundTex);

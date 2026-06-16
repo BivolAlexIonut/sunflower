@@ -1,6 +1,7 @@
 // Inventar + economie: bani, semințe și flori recoltate pe tipuri (rarități).
 #pragma once
 #include "raylib.h"
+#include <iosfwd>
 
 // Tipurile de flori = rarități, după culoarea din FG_Grass_Summer.
 // Galben = floarea-soarelui (țelul jocului).
@@ -27,4 +28,7 @@ public:
 
     void CycleSeed();   // Q: trece la următoarea floare deblocată
     void Draw(const Texture2D& flowers, const Texture2D& icons) const;
+
+    void Serialize(std::ostream&) const;
+    void Deserialize(std::istream&);
 };

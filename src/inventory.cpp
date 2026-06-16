@@ -1,5 +1,7 @@
 #include "inventory.h"
 #include <string>
+#include <ostream>
+#include <istream>
 
 const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
     { "Floare alba",      10,  25, 3.0f,    0 },
@@ -14,6 +16,20 @@ static const Rectangle kFlowerBig[4] = {
 };
 // Iconița de monede din FG_Item_Icons.png
 static const Rectangle kCoinIcon = { 0, 80, 16, 16 };
+
+void Inventory::Serialize(std::ostream& o) const {
+    o << money << " " << selectedSeed << "\n";
+    for (int i = 0; i < (int)Flower::COUNT; i++) o << seeds[i] << " ";      o << "\n";
+    for (int i = 0; i < (int)Flower::COUNT; i++) o << harvested[i] << " ";  o << "\n";
+    for (int i = 0; i < (int)Flower::COUNT; i++) o << (unlocked[i] ? 1 : 0) << " "; o << "\n";
+}
+
+void Inventory::Deserialize(std::istream& in) {
+    in >> money >> selectedSeed;
+    for (int i = 0; i < (int)Flower::COUNT; i++) in >> seeds[i];
+    for (int i = 0; i < (int)Flower::COUNT; i++) in >> harvested[i];
+    for (int i = 0; i < (int)Flower::COUNT; i++) { int u; in >> u; unlocked[i] = (u != 0); }
+}
 
 void Inventory::CycleSeed() {
     for (int i = 1; i <= (int)Flower::COUNT; i++) {

@@ -2,6 +2,8 @@
 #include "inventory.h"
 #include "player.h"
 #include <string>
+#include <ostream>
+#include <istream>
 
 static const char* kTabNames[Shop::TabCount] = { "MAGAZIN", "SKIN-URI", "AJUTOR" };
 
@@ -65,6 +67,20 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             }
         }
     }
+}
+
+void Shop::ApplySkin(Player& player) const {
+    player.SetSkin(kSkinNames[skinApplied]);
+}
+
+void Shop::Serialize(std::ostream& o) const {
+    for (int i = 0; i < SkinCount; i++) o << (skinUnlocked[i] ? 1 : 0) << " ";
+    o << skinApplied << "\n";
+}
+
+void Shop::Deserialize(std::istream& in) {
+    for (int i = 0; i < SkinCount; i++) { int u; in >> u; skinUnlocked[i] = (u != 0); }
+    in >> skinApplied;
 }
 
 void Shop::DrawFrame(int& x, int& y, int& w, int& h) const {

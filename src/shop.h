@@ -1,6 +1,7 @@
 // Meniul jocului (TAB) cu file: Magazin, Skin-uri, Ajutor.
 #pragma once
 #include "raylib.h"
+#include <iosfwd>
 
 class Inventory;
 class Player;
@@ -11,6 +12,10 @@ public:
     void Draw(const Inventory& inv, const Texture2D& flowers, const Texture2D& icons) const;
 
     bool BlocksGameplay() const { return open; }
+
+    void ApplySkin(Player& player) const;     // aplică skin-ul curent (după load)
+    void Serialize(std::ostream&) const;
+    void Deserialize(std::istream&);
 
     static constexpr int SkinCount = 5;
     static constexpr int TabCount = 3;
