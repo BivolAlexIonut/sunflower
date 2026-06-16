@@ -97,6 +97,25 @@ void Player::Update(float dt) {
     }
 }
 
+void Player::UpdateSide(float dt, float minX, float maxX) {
+    float dx = 0;
+    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))  dx -= 1;
+    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) dx += 1;
+
+    moving = (dx != 0);
+    action = Action::Walk;
+    if (moving) {
+        position.x += dx * speed * dt;
+        dir = (dx > 0) ? Dir::Right : Dir::Left;
+        if (position.x < minX) position.x = minX;
+        if (position.x > maxX) position.x = maxX;
+        frameTimer += dt;
+        if (frameTimer >= WalkFrameTime) { frameTimer -= WalkFrameTime; frame = (frame + 1) % FrameCount; }
+    } else {
+        frame = 0;
+    }
+}
+
 void Player::Draw() const {
     const Texture2D& sheet = tex[(int)action][(int)dir];
 

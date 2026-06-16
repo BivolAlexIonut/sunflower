@@ -5,14 +5,14 @@
 
 //                    name              seed  sell  grow  unlock sheet col
 const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
-    { "Floare alba",      10,   25, 3.0f,    0, 0, 0 },
-    { "Floare roz",       25,   65, 3.5f,  120, 0, 1 },
-    { "Floare rosie",     60,  160, 4.0f,  350, 0, 2 },
-    { "Floare albastra", 120,  320, 4.5f,  800, 1, 0 },
-    { "Gheata roz",      200,  520, 5.0f, 1500, 1, 1 },
-    { "Gheata rosie",    320,  820, 5.5f, 2500, 1, 2 },
-    { "Gheata violet",   480, 1250, 6.0f, 4000, 1, 3 },
-    { "Floarea-soarelui",800, 2100, 7.0f, 6500, 0, 3 },
+    { "Floare alba",      10,   25, 12.0f,    0, 0, 0 },
+    { "Floare roz",       25,   65, 14.0f,  120, 0, 1 },
+    { "Floare rosie",     60,  160, 16.0f,  350, 0, 2 },
+    { "Floare albastra", 120,  320, 18.0f,  800, 1, 0 },
+    { "Gheata roz",      200,  520, 20.0f, 1500, 1, 1 },
+    { "Gheata rosie",    320,  820, 22.0f, 2500, 1, 2 },
+    { "Gheata violet",   480, 1250, 25.0f, 4000, 1, 3 },
+    { "Floarea-soarelui",800, 2100, 32.0f, 6500, 0, 3 },
 };
 
 // Iconița de monede din FG_Item_Icons.png

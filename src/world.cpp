@@ -36,13 +36,11 @@ void World::Generate(const TileMap& map) {
                         { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
             }
             else if ((t == Terrain::Grass || t == Terrain::GrassDark) && !path) {
-                bool perim  = (tx <= 1 || tx >= TileMap::Width - 2 ||
-                               ty <= 1 || ty >= TileMap::Height - 2);
+                // copaci rari și DISTANȚAȚI: doar pe tile-uri pare (nu se ating) în pădure
+                bool spaced = (tx % 2 == 0 && ty % 2 == 0);
                 bool forest = (tx <= 15);
-                // cadru des pe marginea hărții (ascunde capătul) + pădure rară
-                bool place = (perim && h % 2 == 0) || (forest && !perim && h % 6 == 0);
-                if (place) {
-                    float jx = (float)((h>>4)%12) - 6;
+                if (spaced && forest && h % 2 == 0) {
+                    float jx = (float)((h>>4)%8) - 4;
                     nodes.push_back({ NodeType::Tree,
                         { tx*(float)TS + 16 + jx, ty*(float)TS + 30 }, (int)(h%4), 3, 0 });
                 }

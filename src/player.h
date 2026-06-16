@@ -15,6 +15,7 @@ public:
     void SetSkin(const std::string& character);   // schimbă caracterul (skin)
     void Unload();
     void Update(float dt);
+    void UpdateSide(float dt, float minX, float maxX);   // mers doar stânga/dreapta (scenă side-view)
     void Draw() const;
 
     void StartAction(Action a);     // pornește o animație de unealtă (one-shot)

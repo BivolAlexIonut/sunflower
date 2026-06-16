@@ -14,6 +14,7 @@ struct Cell {
     int flower = 0;       // tip floare (index în FLOWERS)
     int stage = 0;        // 0 = plantat, 1 = răsărit, 2 = matură
     float growth = 0.0f;
+    bool watered = false; // crește doar dacă e udată; se resetează la fiecare stadiu
 };
 
 class Farm {

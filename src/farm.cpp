@@ -29,11 +29,13 @@ bool Farm::InBounds(int tx, int ty) const {
 
 void Farm::Update(float dt) {
     for (auto& c : cells) {
-        if (c.plot == Plot::Crop && c.stage < MatureStage) {
+        // crește DOAR dacă e udată; după ce avansează un stadiu, are nevoie de udare din nou
+        if (c.plot == Plot::Crop && c.stage < MatureStage && c.watered) {
             c.growth += dt;
             if (c.growth >= FLOWERS[c.flower].growTime) {
                 c.growth = 0.0f;
                 c.stage++;
+                c.watered = false;
             }
         }
     }
@@ -55,6 +57,7 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 c.flower = inv.selectedSeed;
                 c.stage = 0;
                 c.growth = 0.0f;
+                c.watered = false;                    // proaspăt plantată — are nevoie de apă
             }
             break;
         case Plot::Crop:
@@ -63,9 +66,10 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 c.plot = Plot::Soil;
                 c.stage = 0;
                 c.growth = 0.0f;
-            } else {                                  // udă → grăbește creșterea
+                c.watered = false;
+            } else if (!c.watered) {                  // udă → pornește creșterea spre stadiul următor
                 player.StartAction(Action::Watercan);
-                c.growth += FLOWERS[c.flower].growTime * 0.5f;
+                c.watered = true;
             }
             break;
     }
@@ -78,7 +82,8 @@ void Farm::Serialize(std::ostream& o) const {
     for (int i = 0; i < (int)cells.size(); i++) {
         const Cell& c = cells[i];
         if (c.plot == Plot::Grass) continue;
-        o << i << " " << (int)c.plot << " " << c.flower << " " << c.stage << " " << c.growth << "\n";
+        o << i << " " << (int)c.plot << " " << c.flower << " " << c.stage << " "
+          << c.growth << " " << (c.watered ? 1 : 0) << "\n";
     }
 }
 
@@ -86,10 +91,10 @@ void Farm::Deserialize(std::istream& in) {
     for (auto& c : cells) c = Cell{};
     int n; in >> n;
     for (int k = 0; k < n; k++) {
-        int i, p, fl, st; float g;
-        in >> i >> p >> fl >> st >> g;
+        int i, p, fl, st, wt; float g;
+        in >> i >> p >> fl >> st >> g >> wt;
         if (i >= 0 && i < (int)cells.size())
-            cells[i] = Cell{ (Plot)p, fl, st, g };
+            cells[i] = Cell{ (Plot)p, fl, st, g, wt != 0 };
     }
 }
 
@@ -103,24 +108,37 @@ void Farm::DrawGround(const Camera2D& cam) const {
     if (x1 > TileMap::Width)  x1 = TileMap::Width;
     if (y1 > TileMap::Height) y1 = TileMap::Height;
 
-    // pământul săpat
+    // pământul săpat (mai închis = udat)
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
-        if (c.plot == Plot::Soil || c.plot == Plot::Crop)
+        if (c.plot == Plot::Soil || c.plot == Plot::Crop) {
             DrawTexturePro(soilAtlas, kSoil,
                 Rectangle{ (float)(x*TS), (float)(y*TS), (float)TS, (float)TS }, {0,0}, 0, WHITE);
+            if (c.plot == Plot::Crop && c.watered)
+                DrawRectangle(x*TS, y*TS, TS, TS, Color{ 20, 30, 80, 70 });   // pământ ud
+        }
     }
     // florile (bottom-anchored, scalate) — sheet după tipul florii (vară/iarnă)
     const float sc = 2.0f;
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
-        if (c.plot != Plot::Crop || c.stage == 0) continue;
-        int col = FLOWERS[c.flower].col;
-        Rectangle src = (c.stage == 1) ? FlowerBud(col) : FlowerBloom(col);
-        const Texture2D& tex = (FLOWERS[c.flower].sheet == 0) ? summer : winter;
-        float w = src.width * sc, h = src.height * sc;
-        DrawTexturePro(tex, src,
-            Rectangle{ x*TS + TS/2.0f - w/2.0f, (y+1.0f)*TS - h, w, h }, {0,0}, 0, WHITE);
+        if (c.plot != Plot::Crop) continue;
+        if (c.stage > 0) {
+            int col = FLOWERS[c.flower].col;
+            Rectangle src = (c.stage == 1) ? FlowerBud(col) : FlowerBloom(col);
+            const Texture2D& tex = (FLOWERS[c.flower].sheet == 0) ? summer : winter;
+            float w = src.width * sc, h = src.height * sc;
+            DrawTexturePro(tex, src,
+                Rectangle{ x*TS + TS/2.0f - w/2.0f, (y+1.0f)*TS - h, w, h }, {0,0}, 0, WHITE);
+        }
+        // indicator "are nevoie de apă": picătură albastră care plutește deasupra
+        if (c.stage < MatureStage && !c.watered) {
+            float bob = sinf(GetTime() * 3.0f + x + y) * 2.0f;
+            float dx = x*TS + TS/2.0f, dy = y*TS - 6 + bob;
+            DrawCircle((int)dx, (int)dy, 5, Color{ 70, 150, 240, 255 });
+            DrawTriangle({ dx-5, dy-1 }, { dx+5, dy-1 }, { dx, dy-9 }, Color{ 70, 150, 240, 255 });
+            DrawCircle((int)dx-1, (int)dy-1, 2, Color{ 200, 230, 255, 255 });
+        }
     }
 }
 

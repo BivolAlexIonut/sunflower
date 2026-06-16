@@ -8,9 +8,12 @@
 #include "inventory.h"
 #include "shop.h"
 #include "world.h"
+#include "market.h"
 #include "saveio.h"
 #include <vector>
 #include <cmath>
+
+enum class Scene { World, Market };
 
 int main() {
     const int screenW = 960, screenH = 540;
@@ -30,13 +33,17 @@ int main() {
     Player player;     player.Load("Character01");
     player.position = { 24 * TS + 16.0f, 12 * TS + 16.0f };   // grădina
 
-    Texture2D iconTex     = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
+    Texture2D iconTex      = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
     Texture2D flowerSummer = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
     Texture2D flowerWinter = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
-    Texture2D chestTex    = LoadTexture("sprites/Objects/FG_Treasure_Big.png");
+    Texture2D marketSign   = LoadTexture("sprites/Market/Environment/Sign_03.png");
 
-    Vector2 chestPos    = { 13 * TS + 0.0f, 14 * TS + 0.0f };    // "market" lângă grădină
-    Vector2 dunChestPos = { 42 * TS + 0.0f, 14 * TS + 0.0f };    // cufăr-comoară în dungeon
+    Market market;     market.Load();
+    Scene scene = Scene::World;
+    Vector2 worldReturnPos = player.position;
+
+    // intrarea în market: un panou lângă cărare (în pădure, sub drum)
+    Vector2 marketSpot = { 7 * TS + 16.0f, 18 * TS + 0.0f };
 
     // dungeon: dreptunghi în pixeli, pentru ambianța întunecată
     Rectangle dunRect{
@@ -63,15 +70,31 @@ int main() {
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
 
+        // ===== SCENA MARKET (side-view) =====
+        if (scene == Scene::Market) {
+            if (market.Update(dt, player, inventory)) {
+                scene = Scene::World;
+                player.position = worldReturnPos;
+            }
+            BeginDrawing();
+            ClearBackground(Color{ 150, 190, 220, 255 });
+            market.Draw(player, inventory);
+            EndDrawing();
+            continue;
+        }
+
+        // ===== SCENA LUMII (top-down) =====
         shop.HandleInput(inventory, player);
         bool frozen = shop.BlocksGameplay();
 
-        // tile-ul țintit cu mausul + raza de lucru
         Vector2 mw = GetScreenToWorld2D(GetMousePosition(), camera);
         int tx = (int)floorf(mw.x / TS), ty = (int)floorf(mw.y / TS);
         Vector2 tileCenter{ tx * TS + TS / 2.0f, ty * TS + TS / 2.0f };
         float ddx = tileCenter.x - player.position.x, ddy = tileCenter.y - player.position.y;
         bool inRange = (ddx*ddx + ddy*ddy) <= reach*reach;
+
+        bool nearMarket = (fabsf(player.position.x - marketSpot.x) < 48 &&
+                           fabsf(player.position.y - (marketSpot.y - 24)) < 48);
 
         if (!frozen) {
             if (GetMouseWheelMove() != 0 || IsKeyPressed(KEY_Q)) inventory.CycleSeed();
@@ -79,7 +102,6 @@ int main() {
             Vector2 prev = player.position;
             player.Update(dt);
 
-            // coliziuni: ziduri (hartă) + copaci/cristale (world)
             Vector2 feet{ player.position.x, player.position.y + 22 };
             int ftx = (int)(feet.x / TS), fty = (int)(feet.y / TS);
             if (map.IsSolid(ftx, fty) || world.Blocks(feet)) player.position = prev;
@@ -93,8 +115,12 @@ int main() {
             world.Update(dt);
             inventory.TickTime(dt);
 
-            // click stânga în rază: întâi noduri, apoi farmat (doar pe iarbă)
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange && !player.IsBusy()) {
+            if (nearMarket && IsKeyPressed(KEY_E)) {           // intră în market
+                worldReturnPos = player.position;
+                market.Enter(player);
+                scene = Scene::Market;
+            }
+            else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange && !player.IsBusy()) {
                 player.FaceTo(tileCenter);
                 int r = world.Interact(tx, ty, inventory, player);
                 if (r == 0 && map.CanFarm(tx, ty))
@@ -105,7 +131,6 @@ int main() {
         camera.target.x += (player.position.x - camera.target.x) * 10.0f * dt;
         camera.target.y += (player.position.y - camera.target.y) * 10.0f * dt;
 
-        // ține camera în interiorul hărții (fără să se vadă capătul lumii)
         float halfW = screenW / 2.0f / camera.zoom, halfH = screenH / 2.0f / camera.zoom;
         float maxX = map.WorldWidth() - halfW, maxY = map.WorldHeight() - halfH;
         camera.target.x = (halfW > maxX) ? map.WorldWidth()/2  : fmaxf(halfW, fminf(camera.target.x, maxX));
@@ -122,31 +147,34 @@ int main() {
 
         BeginMode2D(camera);
         map.Draw(camera);
-
-        // ambianță de dungeon: voal întunecat peste podeaua de piatră
-        // (desenat înainte de cristale/jucător, ca ele să "strălucească")
         DrawRectangleRec(dunRect, Color{ 12, 14, 40, 110 });
 
         farm.DrawGround(camera);
         if (!frozen) farm.DrawTargetHighlight(tx, ty, inRange);
 
-        // Y-sorting: copaci/cristale + cufere + jucător
+        // Y-sorting: panoul de market + copaci/cristale + jucător
         float pFeet = player.position.y + 22;
-        auto drawChest = [&](Vector2 p){
-            DrawTexturePro(chestTex, Rectangle{0,0,64,32}, Rectangle{ p.x, p.y, 64, 32 }, {32,32}, 0, WHITE);
+        auto drawSign = [&](){
+            float h = 64, w = marketSign.width * (h / marketSign.height);
+            DrawTexturePro(marketSign, { 0,0,(float)marketSign.width,(float)marketSign.height },
+                { marketSpot.x, marketSpot.y, w, h }, { w/2, h }, 0, WHITE);
         };
         world.DrawBehind(pFeet);
-        if (chestPos.y    <= pFeet) drawChest(chestPos);
-        if (dunChestPos.y <= pFeet) drawChest(dunChestPos);
+        if (marketSpot.y <= pFeet) drawSign();
         player.Draw();
-        if (chestPos.y    > pFeet) drawChest(chestPos);
-        if (dunChestPos.y > pFeet) drawChest(dunChestPos);
+        if (marketSpot.y > pFeet) drawSign();
         world.DrawFront(pFeet);
         EndMode2D();
 
         // HUD
         inventory.Draw(flowerSummer, flowerWinter, iconTex);
         DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
+        if (nearMarket && !frozen) {
+            const char* m = "[E] Intra in Market";
+            int w = MeasureText(m, 22);
+            DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
+            DrawText(m, screenW/2 - w/2, 66, 22, WHITE);
+        }
         shop.Draw(inventory, flowerSummer, flowerWinter, iconTex);
 
         EndDrawing();
@@ -154,7 +182,8 @@ int main() {
 
     SaveIO::Save(SAVE_PATH, inventory, shop, farm, player.position);
 
-    UnloadTexture(chestTex);
+    market.Unload();
+    UnloadTexture(marketSign);
     UnloadTexture(flowerSummer);
     UnloadTexture(flowerWinter);
     UnloadTexture(iconTex);
