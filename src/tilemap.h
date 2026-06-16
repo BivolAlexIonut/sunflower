@@ -11,7 +11,8 @@ public:
     static constexpr int Width  = 50;
     static constexpr int Height = 32;
 
-    // Limitele zonei de dungeon (în tile-uri).
+    // Limitele grădinii (incintă cu zid) și ale dungeon-ului (în tile-uri).
+    static constexpr int GX0 = 17, GY0 = 8, GX1 = 31, GY1 = 23;
     static constexpr int DunX0 = 34, DunY0 = 5, DunX1 = 49, DunY1 = 26;
 
     void Load();

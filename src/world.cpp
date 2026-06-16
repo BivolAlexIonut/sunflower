@@ -10,12 +10,15 @@ static unsigned int Hash(int a, int b) {
 }
 
 void World::Load() {
-    treeTex    = LoadTexture("sprites/Objects/FG_Tree_Summer.png");
-    crystalTex = LoadTexture("sprites/Objects/FG_Crystal_Blue_1.png");
+    treeTex = LoadTexture("sprites/Objects/FG_Tree_Summer.png");
+    crystalTex[0] = LoadTexture("sprites/Objects/FG_Crystal_Blue_1.png");
+    crystalTex[1] = LoadTexture("sprites/Objects/FG_Crystal_Gold_1.png");
+    crystalTex[2] = LoadTexture("sprites/Objects/FG_Crystal_Green_1.png");
+    crystalTex[3] = LoadTexture("sprites/Objects/FG_Crystal_Red_1.png");
 }
 void World::Unload() {
     UnloadTexture(treeTex);
-    UnloadTexture(crystalTex);
+    for (int i = 0; i < 4; i++) UnloadTexture(crystalTex[i]);
 }
 
 void World::Generate(const TileMap& map) {
@@ -27,15 +30,18 @@ void World::Generate(const TileMap& map) {
             unsigned int h = Hash(tx * 31, ty * 17);
             bool path = (ty == 15 || ty == 16);
 
-            if (t == Terrain::Stone) {               // cristale în dungeon
-                if (!path && h % 8 == 0)
+            if (t == Terrain::Stone) {               // cristale colorate în dungeon
+                if (!path && h % 7 == 0)
                     nodes.push_back({ NodeType::Crystal,
-                        { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, 0, 2, 0 });
+                        { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
             }
-            else if (t == Terrain::Grass || t == Terrain::GrassDark) {
-                // copaci în pădure (stânga) + pe marginile de sus/jos (cadru); nu în grădină
-                bool border = (tx <= 15 || ty <= 2 || ty >= TileMap::Height - 3);
-                if (border && !path && h % 3 == 0) {
+            else if ((t == Terrain::Grass || t == Terrain::GrassDark) && !path) {
+                bool perim  = (tx <= 1 || tx >= TileMap::Width - 2 ||
+                               ty <= 1 || ty >= TileMap::Height - 2);
+                bool forest = (tx <= 15);
+                // cadru des pe marginea hărții (ascunde capătul) + pădure rară
+                bool place = (perim && h % 2 == 0) || (forest && !perim && h % 6 == 0);
+                if (place) {
                     float jx = (float)((h>>4)%12) - 6;
                     nodes.push_back({ NodeType::Tree,
                         { tx*(float)TS + 16 + jx, ty*(float)TS + 30 }, (int)(h%4), 3, 0 });
@@ -97,7 +103,8 @@ void World::DrawNode(const Node& n) const {
             Rectangle{ n.pos.x, n.pos.y, 64, 80 }, { 32, 80 }, 0, WHITE);
     } else {
         int frame = ((int)(animTime * 8)) % 8;       // licărire
-        DrawTexturePro(crystalTex, Rectangle{ frame*16.0f, 0, 16, 16 },
+        int col = (n.variant >= 0 && n.variant < 4) ? n.variant : 0;
+        DrawTexturePro(crystalTex[col], Rectangle{ frame*16.0f, 0, 16, 16 },
             Rectangle{ n.pos.x, n.pos.y, 32, 32 }, { 16, 32 }, 0, WHITE);
     }
 }

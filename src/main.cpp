@@ -12,8 +12,6 @@
 #include <vector>
 #include <cmath>
 
-struct Deco { Vector2 pos; int variant; };
-
 int main() {
     const int screenW = 960, screenH = 540;
     InitWindow(screenW, screenH, "Gradina Florii-Soarelui");
@@ -32,28 +30,13 @@ int main() {
     Player player;     player.Load("Character01");
     player.position = { 24 * TS + 16.0f, 12 * TS + 16.0f };   // grădina
 
-    Texture2D iconTex   = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
-    Texture2D flowerTex = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
-    Texture2D chestTex  = LoadTexture("sprites/Objects/FG_Treasure_Big.png");
+    Texture2D iconTex     = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
+    Texture2D flowerSummer = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
+    Texture2D flowerWinter = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
+    Texture2D chestTex    = LoadTexture("sprites/Objects/FG_Treasure_Big.png");
 
-    auto hash = [](int a, int b) -> unsigned int {
-        unsigned int h = (unsigned int)(a*73856093) ^ (unsigned int)(b*19349663);
-        h ^= h>>13; h *= 0x5bd1e995; h ^= h>>15; return h;
-    };
-
-    // Flori decorative (vizuale) pe iarbă, sparse — viață în pădure și grădină.
-    std::vector<Deco> deco;
-    for (int ty = 3; ty < TileMap::Height - 3; ty++)
-        for (int tx = 1; tx < TileMap::DunX0; tx++) {
-            if (ty == 15 || ty == 16) continue;                 // nu pe cărare
-            if (!map.CanFarm(tx, ty)) continue;
-            unsigned int h = hash(tx*7+1, ty*13+3);
-            if (h % 14 == 0)
-                deco.push_back({ { tx*TS + 8 + (float)(h%16), ty*TS + 8 + (float)((h>>4)%16) },
-                                 (int)(h % 4) });
-        }
-
-    Vector2 chestPos = { 13 * TS + 0.0f, 14 * TS + 0.0f };       // "market" în grădină, lângă cărare
+    Vector2 chestPos    = { 13 * TS + 0.0f, 14 * TS + 0.0f };    // "market" lângă grădină
+    Vector2 dunChestPos = { 42 * TS + 0.0f, 14 * TS + 0.0f };    // cufăr-comoară în dungeon
 
     // dungeon: dreptunghi în pixeli, pentru ambianța întunecată
     Rectangle dunRect{
@@ -122,6 +105,12 @@ int main() {
         camera.target.x += (player.position.x - camera.target.x) * 10.0f * dt;
         camera.target.y += (player.position.y - camera.target.y) * 10.0f * dt;
 
+        // ține camera în interiorul hărții (fără să se vadă capătul lumii)
+        float halfW = screenW / 2.0f / camera.zoom, halfH = screenH / 2.0f / camera.zoom;
+        float maxX = map.WorldWidth() - halfW, maxY = map.WorldHeight() - halfH;
+        camera.target.x = (halfW > maxX) ? map.WorldWidth()/2  : fmaxf(halfW, fminf(camera.target.x, maxX));
+        camera.target.y = (halfH > maxY) ? map.WorldHeight()/2 : fmaxf(halfH, fminf(camera.target.y, maxY));
+
         autosaveTimer += dt;
         if (autosaveTimer >= 20.0f) {
             autosaveTimer = 0.0f;
@@ -141,25 +130,24 @@ int main() {
         farm.DrawGround(camera);
         if (!frozen) farm.DrawTargetHighlight(tx, ty, inRange);
 
-        for (const Deco& d : deco)
-            DrawTexturePro(flowerTex, Rectangle{ d.variant*16.0f, 0, 16, 16 },
-                Rectangle{ d.pos.x, d.pos.y, 24, 24 }, {12,24}, 0, WHITE);
-
-        // Y-sorting: copaci/cristale + cufăr + jucător
+        // Y-sorting: copaci/cristale + cufere + jucător
         float pFeet = player.position.y + 22;
+        auto drawChest = [&](Vector2 p){
+            DrawTexturePro(chestTex, Rectangle{0,0,64,32}, Rectangle{ p.x, p.y, 64, 32 }, {32,32}, 0, WHITE);
+        };
         world.DrawBehind(pFeet);
-        if (chestPos.y <= pFeet)
-            DrawTexturePro(chestTex, Rectangle{0,0,64,32}, Rectangle{ chestPos.x, chestPos.y, 64, 32 }, {32,32}, 0, WHITE);
+        if (chestPos.y    <= pFeet) drawChest(chestPos);
+        if (dunChestPos.y <= pFeet) drawChest(dunChestPos);
         player.Draw();
-        if (chestPos.y > pFeet)
-            DrawTexturePro(chestTex, Rectangle{0,0,64,32}, Rectangle{ chestPos.x, chestPos.y, 64, 32 }, {32,32}, 0, WHITE);
+        if (chestPos.y    > pFeet) drawChest(chestPos);
+        if (dunChestPos.y > pFeet) drawChest(dunChestPos);
         world.DrawFront(pFeet);
         EndMode2D();
 
         // HUD
-        inventory.Draw(flowerTex, iconTex);
+        inventory.Draw(flowerSummer, flowerWinter, iconTex);
         DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
-        shop.Draw(inventory, flowerTex, iconTex);
+        shop.Draw(inventory, flowerSummer, flowerWinter, iconTex);
 
         EndDrawing();
     }
@@ -167,7 +155,8 @@ int main() {
     SaveIO::Save(SAVE_PATH, inventory, shop, farm, player.position);
 
     UnloadTexture(chestTex);
-    UnloadTexture(flowerTex);
+    UnloadTexture(flowerSummer);
+    UnloadTexture(flowerWinter);
     UnloadTexture(iconTex);
     world.Unload();
     farm.Unload();

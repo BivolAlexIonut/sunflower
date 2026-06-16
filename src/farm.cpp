@@ -9,23 +9,17 @@
 // Tile de pământ săpat din FG_Grounds.png (16x16).
 static const Rectangle kSoil = { 176, 80, 16, 16 };
 
-// Floricele din FG_Grass_Summer.png (16x16): boboc mic (stadiu 1) + floare mare (stadiu 2).
-static const Rectangle kBud[4] = {
-    { 64, 0, 16, 16 }, { 80, 0, 16, 16 }, { 96, 0, 16, 16 }, { 112, 0, 16, 16 }
-};
-static const Rectangle kBloom[4] = {
-    {  0, 0, 16, 16 }, { 16, 0, 16, 16 }, { 32, 0, 16, 16 }, { 48, 0, 16, 16 }
-};
-
 Farm::Farm() { cells.resize(TileMap::Width * TileMap::Height); }
 
 void Farm::Load() {
     soilAtlas = LoadTexture("sprites/Tilesets/FG_Grounds.png");
-    flowers   = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
+    summer    = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
+    winter    = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
 }
 void Farm::Unload() {
     UnloadTexture(soilAtlas);
-    UnloadTexture(flowers);
+    UnloadTexture(summer);
+    UnloadTexture(winter);
 }
 
 int Farm::Idx(int tx, int ty) const { return ty * TileMap::Width + tx; }
@@ -116,14 +110,16 @@ void Farm::DrawGround(const Camera2D& cam) const {
             DrawTexturePro(soilAtlas, kSoil,
                 Rectangle{ (float)(x*TS), (float)(y*TS), (float)TS, (float)TS }, {0,0}, 0, WHITE);
     }
-    // florile (bottom-anchored, scalate)
+    // florile (bottom-anchored, scalate) — sheet după tipul florii (vară/iarnă)
     const float sc = 2.0f;
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
         if (c.plot != Plot::Crop || c.stage == 0) continue;
-        Rectangle src = (c.stage == 1) ? kBud[c.flower] : kBloom[c.flower];
+        int col = FLOWERS[c.flower].col;
+        Rectangle src = (c.stage == 1) ? FlowerBud(col) : FlowerBloom(col);
+        const Texture2D& tex = (FLOWERS[c.flower].sheet == 0) ? summer : winter;
         float w = src.width * sc, h = src.height * sc;
-        DrawTexturePro(flowers, src,
+        DrawTexturePro(tex, src,
             Rectangle{ x*TS + TS/2.0f - w/2.0f, (y+1.0f)*TS - h, w, h }, {0,0}, 0, WHITE);
     }
 }

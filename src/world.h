@@ -37,7 +37,7 @@ public:
 private:
     std::vector<Node> nodes;
     Texture2D treeTex{};
-    Texture2D crystalTex{};
+    Texture2D crystalTex[4]{};   // Blue, Gold, Green, Red
     float animTime = 0.0f;
 
     void DrawNode(const Node& n) const;

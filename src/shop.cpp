@@ -19,9 +19,6 @@ static const char* kSkinLabels[Shop::SkinCount] = {
 static const int kSkinCost[Shop::SkinCount] = { 0, 200, 500, 1200, 1200 };
 
 static const Rectangle kCoinIcon = { 0, 80, 16, 16 };
-static const Rectangle kFlowerBig[4] = {
-    {  0, 0, 16, 16 }, { 16, 0, 16, 16 }, { 32, 0, 16, 16 }, { 48, 0, 16, 16 }
-};
 
 void Shop::HandleInput(Inventory& inv, Player& player) {
     if (IsKeyPressed(KEY_TAB)) { open = !open; row = 0; }
@@ -107,7 +104,7 @@ void Shop::Deserialize(std::istream& in) {
 }
 
 void Shop::DrawFrame(int& x, int& y, int& w, int& h) const {
-    w = 600; h = 400;
+    w = 620; h = 480;
     x = GetScreenWidth() / 2 - w / 2;
     y = GetScreenHeight() / 2 - h / 2;
     DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Color{ 0, 0, 0, 140 });
@@ -129,7 +126,8 @@ void Shop::DrawTabs(int x, int y, int w) const {
     DrawRectangle(x, y + 40, w, 3, Color{ 255, 220, 90, 255 });
 }
 
-void Shop::Draw(const Inventory& inv, const Texture2D& flowers, const Texture2D& icons) const {
+void Shop::Draw(const Inventory& inv, const Texture2D& summer, const Texture2D& winter,
+                const Texture2D& icons) const {
     if (!open) return;
     int x, y, w, h;
     DrawFrame(x, y, w, h);
@@ -140,7 +138,7 @@ void Shop::Draw(const Inventory& inv, const Texture2D& flowers, const Texture2D&
     DrawText(TextFormat("%d", inv.money), x + w - 80, y + 10, 22, Color{ 255, 220, 90, 255 });
 
     int cx = x + 20, cy = y + 56, cw = w - 40, ch = h - 76;
-    if (tab == 0) DrawShop(cx, cy, cw, ch, inv, flowers, icons);
+    if (tab == 0) DrawShop(cx, cy, cw, ch, inv, summer, winter);
     if (tab == 1) DrawTools(cx, cy, cw, ch, inv);
     if (tab == 2) DrawSkins(cx, cy, cw, ch, inv);
     if (tab == 3) DrawHelp(cx, cy, cw, ch);
@@ -150,39 +148,39 @@ void Shop::Draw(const Inventory& inv, const Texture2D& flowers, const Texture2D&
 }
 
 void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv,
-                    const Texture2D& flowers, const Texture2D& icons) const {
-    DrawText(TextFormat("Ziua %d - preturile pietei fluctueaza zilnic. Scop: Floarea-Soarelui.",
-             inv.day), x, y, 15, Color{ 190, 200, 190, 255 });
+                    const Texture2D& summer, const Texture2D& winter) const {
+    DrawText(TextFormat("Ziua %d - preturile fluctueaza zilnic. Scop final: Floarea-Soarelui.",
+             inv.day), x, y, 14, Color{ 190, 200, 190, 255 });
 
     for (int i = 0; i < (int)Flower::COUNT; i++) {
-        int ry = y + 26 + i * 56;
-        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 52, Color{ 255, 255, 255, 26 });
+        int ry = y + 22 + i * 42;
+        if (i == row) DrawRectangle(x - 6, ry - 4, w + 12, 40, Color{ 255, 255, 255, 26 });
 
-        DrawTexturePro(flowers, kFlowerBig[i], Rectangle{ (float)x, (float)ry, 40, 40 }, {0,0}, 0, WHITE);
-        DrawText(FLOWERS[i].name, x + 50, ry, 19, WHITE);
+        const Texture2D& sheet = (FLOWERS[i].sheet == 0) ? summer : winter;
+        DrawTexturePro(sheet, FlowerBloom(FLOWERS[i].col),
+            Rectangle{ (float)x, (float)ry, 32, 32 }, {0,0}, 0, WHITE);
+        DrawText(FLOWERS[i].name, x + 40, ry, 17, WHITE);
 
         if (!inv.unlocked[i]) {
-            DrawText(TextFormat("BLOCAT   [U] Deblocheaza: %d", FLOWERS[i].unlockCost),
-                     x + 50, ry + 24, 16, Color{ 230, 150, 150, 255 });
+            DrawText(TextFormat("BLOCAT  [U] %d", FLOWERS[i].unlockCost),
+                     x + 40, ry + 19, 14, Color{ 230, 150, 150, 255 });
         } else {
-            // indicator de piață: ↑ scump, ↓ ieftin
             float f = inv.PriceFactor(i);
             int price = inv.CurrentSell(i);
             const char* arrow = (f > 1.15f) ? "++" : (f < 0.85f) ? "--" : "=";
             Color ac = (f > 1.15f) ? Color{ 140,230,140,255 }
                      : (f < 0.85f) ? Color{ 230,150,150,255 } : Color{ 200,200,200,255 };
-            DrawText(TextFormat("[B] Samanta %d    [S] Vinde %d buc @ %d",
-                     FLOWERS[i].seedCost, inv.harvested[i], price), x + 50, ry + 24, 15,
+            DrawText(TextFormat("[B] sam.%d   [S] vinde %d @ %d",
+                     FLOWERS[i].seedCost, inv.harvested[i], price), x + 40, ry + 19, 14,
                      Color{ 190, 215, 190, 255 });
-            DrawText(arrow, x + w - 28, ry + 22, 18, ac);
+            DrawText(arrow, x + w - 26, ry + 8, 18, ac);
         }
     }
 
-    // vânzare resurse
-    int ry = y + 26 + (int)Flower::COUNT * 56;
-    DrawText(TextFormat("[W] Vinde lemn: %d x%d        [C] Vinde cristale: %d x%d",
+    int ry = y + 22 + (int)Flower::COUNT * 42;
+    DrawText(TextFormat("[W] Vinde lemn: %d x%d     [C] Vinde cristale: %d x%d",
              inv.wood, Inventory::WoodPrice, inv.crystals, Inventory::CrystalPrice),
-             x, ry, 16, Color{ 210, 190, 150, 255 });
+             x, ry, 15, Color{ 210, 190, 150, 255 });
 }
 
 void Shop::DrawTools(int x, int y, int w, int h, const Inventory& inv) const {

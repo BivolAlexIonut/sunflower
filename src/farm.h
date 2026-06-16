@@ -37,7 +37,8 @@ public:
 private:
     std::vector<Cell> cells;
     Texture2D soilAtlas{};   // FG_Grounds (pentru tile-ul de pământ)
-    Texture2D flowers{};     // FG_Grass_Summer
+    Texture2D summer{};      // FG_Grass_Summer
+    Texture2D winter{};      // FG_Grass_Winter
 
     int Idx(int tx, int ty) const;
     bool InBounds(int tx, int ty) const;

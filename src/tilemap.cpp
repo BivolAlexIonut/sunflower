@@ -54,24 +54,30 @@ void TileMap::Build() {
         for (int tx = 0; tx < 16; tx++)
             if (Hash(tx, ty) % 4 == 0) Set(tx, ty, Terrain::GrassDark);
 
-    // dungeon (dreapta) — podea de piatră cu zid pe contur
+    // GRĂDINA (centru) — incintă cu zid, iarbă înăuntru (se plantează doar aici)
+    for (int ty = GY0; ty <= GY1; ty++) {
+        for (int tx = GX0; tx <= GX1; tx++) {
+            bool border = (tx == GX0 || tx == GX1 || ty == GY0 || ty == GY1);
+            Set(tx, ty, border ? Terrain::Wall : Terrain::Grass);
+        }
+    }
+
+    // DUNGEON (dreapta) — podea de piatră cu zid pe contur
     for (int ty = DunY0; ty <= DunY1; ty++) {
         for (int tx = DunX0; tx <= DunX1; tx++) {
             bool border = (tx == DunX0 || tx == DunX1 || ty == DunY0 || ty == DunY1);
             Set(tx, ty, border ? Terrain::Wall : Terrain::Stone);
         }
     }
-    // intrare în dungeon (spărtură în zidul din stânga, la nivelul cărării)
-    Set(DunX0, 15, Terrain::Stone);
-    Set(DunX0, 16, Terrain::Stone);
 
-    // cărare de pământ care leagă pădurea → grădina → intrarea în dungeon
-    for (int tx = 2; tx <= DunX0; tx++) {
-        if (At(tx, 15) != Terrain::Wall) Set(tx, 15, Terrain::Dirt);
-        if (At(tx, 16) != Terrain::Wall) Set(tx, 16, Terrain::Dirt);
-    }
-    Set(DunX0, 15, Terrain::Stone);   // păstrează intrarea ca piatră
-    Set(DunX0, 16, Terrain::Stone);
+    // cărarea de pământ: pădure → intrarea în grădină, și grădină → intrarea în dungeon
+    for (int tx = 2; tx < GX0; tx++)        { Set(tx, 15, Terrain::Dirt); Set(tx, 16, Terrain::Dirt); }
+    for (int tx = GX1 + 1; tx <= DunX0; tx++) { Set(tx, 15, Terrain::Dirt); Set(tx, 16, Terrain::Dirt); }
+
+    // intrări (spărturi în ziduri la nivelul cărării)
+    Set(GX0, 15, Terrain::Grass);  Set(GX0, 16, Terrain::Grass);   // grădină stânga
+    Set(GX1, 15, Terrain::Grass);  Set(GX1, 16, Terrain::Grass);   // grădină dreapta
+    Set(DunX0, 15, Terrain::Stone); Set(DunX0, 16, Terrain::Stone); // dungeon stânga
 }
 
 void TileMap::Draw(const Camera2D& cam) const {
