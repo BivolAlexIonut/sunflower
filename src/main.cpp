@@ -7,11 +7,10 @@
 #include "farm.h"
 #include "inventory.h"
 #include "shop.h"
+#include "world.h"
 #include "saveio.h"
 #include <vector>
 #include <cmath>
-
-struct Tree { Vector2 pos; int variant; };
 
 int main() {
     const int screenW = 960, screenH = 540;
@@ -24,12 +23,12 @@ int main() {
 
     TileMap map;       map.Load();
     Farm farm;         farm.Load();
+    World world;       world.Load();
     Inventory inventory;
     Shop shop;
     Player player;     player.Load("Character01");
     player.position = { map.WorldWidth() / 2, map.WorldHeight() / 2 };
 
-    Texture2D treeTex   = LoadTexture("sprites/Objects/FG_Tree_Summer.png");
     Texture2D iconTex   = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
     Texture2D flowerTex = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
     Texture2D groundTex = LoadTexture("sprites/Tilesets/FG_Grounds.png");
@@ -46,18 +45,8 @@ int main() {
         return tx >= cx0 && tx < cx1 && ty >= cy0 && ty < cy1;
     };
 
-    // Copaci așezați natural pe marginea hărții (cu jitter), nu în zona de fermă.
-    std::vector<Tree> trees;
-    for (int ty = 1; ty < TileMap::Height - 1; ty++) {
-        for (int tx = 1; tx < TileMap::Width - 1; tx++) {
-            if (inFarmArea(tx, ty)) continue;
-            unsigned int h = hash(tx, ty);
-            if (h % 5 != 0) continue;                       // densitate
-            float jx = (float)((h >> 4) % 16) - 8;
-            float jy = (float)((h >> 8) % 16) - 8;
-            trees.push_back({ { tx*32.0f + 16 + jx, ty*32.0f + 64 + jy }, (int)(h % 4) });
-        }
-    }
+    // Copaci + cristale (noduri de resurse) în afara zonei de fermă.
+    world.Generate(12345, cx0, cy0, cx1, cy1);
 
     // Flori decorative (vizuale) pe marginea zonei, ca să nu fie pustiu.
     struct Deco { Vector2 pos; int variant; };
@@ -80,15 +69,6 @@ int main() {
 
     Vector2 chestPos = { (cx0 - 1) * 32.0f, (pcy) * 32.0f };   // "market" lângă fermă
     Rectangle pathTile{ 80, 16, 16, 16 };                       // pământ auriu
-
-    auto treeBlocks = [&](Vector2 feet) -> bool {
-        for (const Tree& t : trees) {
-            // trunchiul: dreptunghi mic la baza copacului
-            Rectangle trunk{ t.pos.x - 12, t.pos.y - 14, 24, 14 };
-            if (CheckCollisionPointRec(feet, trunk)) return true;
-        }
-        return false;
-    };
 
     // încarcă progresul salvat (dacă există)
     Vector2 loadedPos = player.position;
@@ -127,7 +107,7 @@ int main() {
             player.Update(dt);
 
             Vector2 feet{ player.position.x, player.position.y + 22 };
-            if (treeBlocks(feet)) player.position = prev;
+            if (world.Blocks(feet)) player.position = prev;
 
             if (player.position.x < 16) player.position.x = 16;
             if (player.position.y < 16) player.position.y = 16;
@@ -135,11 +115,13 @@ int main() {
             if (player.position.y > map.WorldHeight() - 16) player.position.y = map.WorldHeight() - 16;
 
             farm.Update(dt);
+            world.Update(dt);
 
-            // click stânga pe un tile din rază → sapă / plantează / udă / recoltează
+            // click stânga pe un tile din rază: întâi noduri (copac/cristal), apoi fermă
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange && !player.IsBusy()) {
                 player.FaceTo(tileCenter);
-                farm.Interact(tx, ty, inventory, player);
+                int r = world.Interact(tx, ty, inventory, player);
+                if (r == 0) farm.Interact(tx, ty, inventory, player);
             }
         }
 
@@ -171,11 +153,7 @@ int main() {
                 Rectangle{ d.pos.x, d.pos.y, 24, 24 }, {12,24}, 0, WHITE);
 
         float pFeet = player.position.y + 22;
-        auto drawTree = [&](const Tree& t){
-            DrawTexturePro(treeTex, Rectangle{ t.variant*64.0f, 0, 64, 80 },
-                Rectangle{ t.pos.x, t.pos.y, 64, 80 }, { 32, 80 }, 0, WHITE);
-        };
-        for (const Tree& t : trees) if (t.pos.y <= pFeet) drawTree(t);
+        world.DrawBehind(pFeet);
         if (chestPos.y <= pFeet)
             DrawTexturePro(chestTex, Rectangle{0,0,64,32},
                 Rectangle{ chestPos.x, chestPos.y, 64, 32 }, {32,32}, 0, WHITE);
@@ -185,7 +163,7 @@ int main() {
         if (chestPos.y > pFeet)
             DrawTexturePro(chestTex, Rectangle{0,0,64,32},
                 Rectangle{ chestPos.x, chestPos.y, 64, 32 }, {32,32}, 0, WHITE);
-        for (const Tree& t : trees) if (t.pos.y > pFeet) drawTree(t);
+        world.DrawFront(pFeet);
         EndMode2D();
 
         // HUD minimal: bani + hotbar (restul se explică în meniu)
@@ -203,7 +181,7 @@ int main() {
     UnloadTexture(groundTex);
     UnloadTexture(flowerTex);
     UnloadTexture(iconTex);
-    UnloadTexture(treeTex);
+    world.Unload();
     farm.Unload();
     player.Unload();
     map.Unload();

@@ -26,6 +26,14 @@ public:
     bool unlocked[(int)Flower::COUNT] = { true, false, false, false };
     int selectedSeed = 0;
 
+    // resurse din lume
+    int wood = 0;
+    int crystals = 0;
+
+    // unelte deblocabile (la start doar sapă/plantează/udă)
+    bool hasAxe = false;
+    bool hasPickaxe = false;
+
     void CycleSeed();   // Q: trece la următoarea floare deblocată
     void Draw(const Texture2D& flowers, const Texture2D& icons) const;
 

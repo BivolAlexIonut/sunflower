@@ -22,6 +22,7 @@ void Inventory::Serialize(std::ostream& o) const {
     for (int i = 0; i < (int)Flower::COUNT; i++) o << seeds[i] << " ";      o << "\n";
     for (int i = 0; i < (int)Flower::COUNT; i++) o << harvested[i] << " ";  o << "\n";
     for (int i = 0; i < (int)Flower::COUNT; i++) o << (unlocked[i] ? 1 : 0) << " "; o << "\n";
+    o << wood << " " << crystals << " " << (hasAxe ? 1 : 0) << " " << (hasPickaxe ? 1 : 0) << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -29,6 +30,8 @@ void Inventory::Deserialize(std::istream& in) {
     for (int i = 0; i < (int)Flower::COUNT; i++) in >> seeds[i];
     for (int i = 0; i < (int)Flower::COUNT; i++) in >> harvested[i];
     for (int i = 0; i < (int)Flower::COUNT; i++) { int u; in >> u; unlocked[i] = (u != 0); }
+    int ax, pk; in >> wood >> crystals >> ax >> pk;
+    hasAxe = (ax != 0); hasPickaxe = (pk != 0);
 }
 
 void Inventory::CycleSeed() {
@@ -42,6 +45,10 @@ void Inventory::Draw(const Texture2D& flowers, const Texture2D& icons) const {
     // Bani (sus-stânga) cu iconița de monede
     DrawTexturePro(icons, kCoinIcon, Rectangle{ 16, 14, 28, 28 }, { 0, 0 }, 0.0f, WHITE);
     DrawText(TextFormat("%d", money), 50, 16, 26, Color{ 255, 220, 90, 255 });
+
+    // Resurse (lemn, cristale)
+    DrawText(TextFormat("Lemn: %d", wood), 16, 46, 18, Color{ 200, 160, 110, 255 });
+    DrawText(TextFormat("Cristale: %d", crystals), 120, 46, 18, Color{ 130, 210, 230, 255 });
 
     // Hotbar jos: sămânța selectată + recolta ei
     const int slot = 64;

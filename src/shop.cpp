@@ -5,7 +5,10 @@
 #include <ostream>
 #include <istream>
 
-static const char* kTabNames[Shop::TabCount] = { "MAGAZIN", "SKIN-URI", "AJUTOR" };
+static const char* kTabNames[Shop::TabCount] = { "MAGAZIN", "UNELTE", "SKIN-URI", "AJUTOR" };
+
+static const int kAxeCost = 80;
+static const int kPickaxeCost = 220;
 
 static const char* kSkinNames[Shop::SkinCount] = {
     "Character01", "Character05", "Character10", "Knight_10", "Knight_11"
@@ -31,8 +34,9 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
     if (IsKeyPressed(KEY_ONE))   { tab = 0; row = 0; }
     if (IsKeyPressed(KEY_TWO))   { tab = 1; row = 0; }
     if (IsKeyPressed(KEY_THREE)) { tab = 2; row = 0; }
+    if (IsKeyPressed(KEY_FOUR))  { tab = 3; row = 0; }
 
-    if (tab == 0) {                                   // MAGAZIN
+    if (tab == 0) {                                   // MAGAZIN (flori)
         int n = (int)Flower::COUNT;
         if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % n;
         if (IsKeyPressed(KEY_UP))   row = (row + n - 1) % n;
@@ -52,7 +56,19 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             inv.harvested[row] = 0;
         }
     }
-    else if (tab == 1) {                              // SKIN-URI
+    else if (tab == 1) {                              // UNELTE
+        if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % 2;
+        if (IsKeyPressed(KEY_UP))   row = (row + 1) % 2;
+        if (IsKeyPressed(KEY_B)) {
+            if (row == 0 && !inv.hasAxe && inv.money >= kAxeCost) {
+                inv.money -= kAxeCost; inv.hasAxe = true;
+            }
+            if (row == 1 && !inv.hasPickaxe && inv.money >= kPickaxeCost) {
+                inv.money -= kPickaxeCost; inv.hasPickaxe = true;
+            }
+        }
+    }
+    else if (tab == 2) {                              // SKIN-URI
         if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % SkinCount;
         if (IsKeyPressed(KEY_UP))   row = (row + SkinCount - 1) % SkinCount;
 
@@ -118,8 +134,9 @@ void Shop::Draw(const Inventory& inv, const Texture2D& flowers, const Texture2D&
 
     int cx = x + 20, cy = y + 56, cw = w - 40, ch = h - 76;
     if (tab == 0) DrawShop(cx, cy, cw, ch, inv, flowers, icons);
-    if (tab == 1) DrawSkins(cx, cy, cw, ch, inv);
-    if (tab == 2) DrawHelp(cx, cy, cw, ch);
+    if (tab == 1) DrawTools(cx, cy, cw, ch, inv);
+    if (tab == 2) DrawSkins(cx, cy, cw, ch, inv);
+    if (tab == 3) DrawHelp(cx, cy, cw, ch);
 
     DrawText("1/2/3 sau Stanga/Dreapta: fila   |   Sus/Jos: alege   |   TAB/ESC: inchide",
              x + 20, y + h - 28, 15, Color{ 170, 170, 170, 255 });
@@ -144,6 +161,28 @@ void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv,
                      FLOWERS[i].seedCost, inv.harvested[i], FLOWERS[i].sellPrice, inv.seeds[i]),
                      x + 54, ry + 26, 15, Color{ 190, 215, 190, 255 });
         }
+    }
+}
+
+void Shop::DrawTools(int x, int y, int w, int h, const Inventory& inv) const {
+    DrawText("Deblocheaza unelte ca sa folosesti mai mult din lume.",
+             x, y, 15, Color{ 190, 200, 190, 255 });
+
+    struct Row { const char* name; const char* desc; bool owned; int cost; };
+    Row rows[2] = {
+        { "Topor",     "Taie copacii -> Lemn",        inv.hasAxe,     kAxeCost },
+        { "Tarnacop",  "Sparge cristale -> Cristale", inv.hasPickaxe, kPickaxeCost },
+    };
+    for (int i = 0; i < 2; i++) {
+        int ry = y + 32 + i * 70;
+        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 62, Color{ 255, 255, 255, 26 });
+        DrawText(rows[i].name, x, ry, 22, WHITE);
+        DrawText(rows[i].desc, x, ry + 26, 16, Color{ 190, 200, 190, 255 });
+        if (rows[i].owned)
+            DrawText("[CUMPARAT]", x + 320, ry + 4, 18, Color{ 140, 230, 140, 255 });
+        else
+            DrawText(TextFormat("[B] Cumpara: %d", rows[i].cost), x + 320, ry + 4, 18,
+                     Color{ 230, 200, 140, 255 });
     }
 }
 

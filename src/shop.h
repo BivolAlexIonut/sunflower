@@ -18,7 +18,7 @@ public:
     void Deserialize(std::istream&);
 
     static constexpr int SkinCount = 5;
-    static constexpr int TabCount = 3;
+    static constexpr int TabCount = 4;
 
 private:
     bool open = false;
@@ -32,6 +32,7 @@ private:
     void DrawTabs(int x, int y, int w) const;
     void DrawShop(int x, int y, int w, int h, const Inventory& inv,
                   const Texture2D& flowers, const Texture2D& icons) const;
+    void DrawTools(int x, int y, int w, int h, const Inventory& inv) const;
     void DrawSkins(int x, int y, int w, int h, const Inventory& inv) const;
     void DrawHelp(int x, int y, int w, int h) const;
 };
