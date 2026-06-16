@@ -20,7 +20,7 @@ class World {
 public:
     void Load();
     void Unload();
-    void Generate(int seed, int cx0, int cy0, int cx1, int cy1);  // în afara zonei de fermă
+    void Generate(const class TileMap& map);   // copaci în pădure, cristale în dungeon
 
     void Update(float dt);
     bool Blocks(Vector2 feet) const;

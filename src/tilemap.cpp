@@ -1,28 +1,80 @@
 #include "tilemap.h"
 #include <cmath>
 
-// Tile-uri de iarbă texturată din atlas (16x16) — se repetă fără cusături.
-static const Rectangle kGrass[2] = {
-    { 304, 80, 16, 16 },   // iarbă texturată (principală)
-    { 400, 80, 16, 16 },   // variantă ușor mai închisă (rar)
-};
-
-static unsigned int TileHash(int x, int y) {
+static unsigned int Hash(int x, int y) {
     unsigned int h = (unsigned int)(x * 73856093) ^ (unsigned int)(y * 19349663);
     h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15;
     return h;
 }
 
+// Surse în atlas (px). Iarbă/pământ = FG_Grounds (16px); piatră/zid = A5 (32px).
+static Rectangle SrcFor(Terrain t) {
+    switch (t) {
+        case Terrain::Grass:     return { 304, 80, 16, 16 };
+        case Terrain::GrassDark: return { 400, 80, 16, 16 };
+        case Terrain::Dirt:      return {  80, 16, 16, 16 };
+        case Terrain::Stone:     return {  32, 32, 32, 32 };
+        case Terrain::Wall:      return {  64,  0, 32, 32 };
+    }
+    return { 304, 80, 16, 16 };
+}
+
 void TileMap::Load() {
-    atlas = LoadTexture("sprites/Tilesets/FG_Grounds.png");
+    grounds  = LoadTexture("sprites/Tilesets/FG_Grounds.png");
+    fortress = LoadTexture("sprites/RPG Maker/RPG Maker MZ (32x32)/tilesets/FG_Fortress_A5.png");
+    tiles.assign(Width * Height, Terrain::Grass);
 }
 
 void TileMap::Unload() {
-    UnloadTexture(atlas);
+    UnloadTexture(grounds);
+    UnloadTexture(fortress);
+}
+
+void TileMap::Set(int tx, int ty, Terrain t) {
+    if (tx >= 0 && ty >= 0 && tx < Width && ty < Height) tiles[Idx(tx, ty)] = t;
+}
+
+Terrain TileMap::At(int tx, int ty) const {
+    if (tx < 0 || ty < 0 || tx >= Width || ty >= Height) return Terrain::Grass;
+    return tiles[Idx(tx, ty)];
+}
+
+bool TileMap::IsSolid(int tx, int ty) const { return At(tx, ty) == Terrain::Wall; }
+
+bool TileMap::CanFarm(int tx, int ty) const {
+    Terrain t = At(tx, ty);
+    return t == Terrain::Grass || t == Terrain::GrassDark;
+}
+
+void TileMap::Build() {
+    tiles.assign(Width * Height, Terrain::Grass);
+
+    // pădurea (stânga) — pete de iarbă mai închisă pentru textură
+    for (int ty = 0; ty < Height; ty++)
+        for (int tx = 0; tx < 16; tx++)
+            if (Hash(tx, ty) % 4 == 0) Set(tx, ty, Terrain::GrassDark);
+
+    // dungeon (dreapta) — podea de piatră cu zid pe contur
+    for (int ty = DunY0; ty <= DunY1; ty++) {
+        for (int tx = DunX0; tx <= DunX1; tx++) {
+            bool border = (tx == DunX0 || tx == DunX1 || ty == DunY0 || ty == DunY1);
+            Set(tx, ty, border ? Terrain::Wall : Terrain::Stone);
+        }
+    }
+    // intrare în dungeon (spărtură în zidul din stânga, la nivelul cărării)
+    Set(DunX0, 15, Terrain::Stone);
+    Set(DunX0, 16, Terrain::Stone);
+
+    // cărare de pământ care leagă pădurea → grădina → intrarea în dungeon
+    for (int tx = 2; tx <= DunX0; tx++) {
+        if (At(tx, 15) != Terrain::Wall) Set(tx, 15, Terrain::Dirt);
+        if (At(tx, 16) != Terrain::Wall) Set(tx, 16, Terrain::Dirt);
+    }
+    Set(DunX0, 15, Terrain::Stone);   // păstrează intrarea ca piatră
+    Set(DunX0, 16, Terrain::Stone);
 }
 
 void TileMap::Draw(const Camera2D& cam) const {
-    // culling: doar tile-urile vizibile
     Vector2 tl = GetScreenToWorld2D({ 0, 0 }, cam);
     Vector2 br = GetScreenToWorld2D({ (float)GetScreenWidth(), (float)GetScreenHeight() }, cam);
     int x0 = (int)floorf(tl.x / TileSize) - 1, y0 = (int)floorf(tl.y / TileSize) - 1;
@@ -33,12 +85,12 @@ void TileMap::Draw(const Camera2D& cam) const {
 
     for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
-            unsigned int h = TileHash(x, y);
-            int v = (h % 9 == 0) ? 1 : 0;   // rar varianta mai închisă
-            Rectangle src = kGrass[v];
+            Terrain t = tiles[Idx(x, y)];
+            const Texture2D& tex = (t == Terrain::Stone || t == Terrain::Wall) ? fortress : grounds;
+            Rectangle src = SrcFor(t);
             Rectangle dst{ (float)(x * TileSize), (float)(y * TileSize),
                            (float)TileSize, (float)TileSize };
-            DrawTexturePro(atlas, src, dst, { 0, 0 }, 0.0f, WHITE);
+            DrawTexturePro(tex, src, dst, { 0, 0 }, 0.0f, WHITE);
         }
     }
 }

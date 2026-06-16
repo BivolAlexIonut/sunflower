@@ -23,6 +23,7 @@ void Inventory::Serialize(std::ostream& o) const {
     for (int i = 0; i < (int)Flower::COUNT; i++) o << harvested[i] << " ";  o << "\n";
     for (int i = 0; i < (int)Flower::COUNT; i++) o << (unlocked[i] ? 1 : 0) << " "; o << "\n";
     o << wood << " " << crystals << " " << (hasAxe ? 1 : 0) << " " << (hasPickaxe ? 1 : 0) << "\n";
+    o << day << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -32,6 +33,22 @@ void Inventory::Deserialize(std::istream& in) {
     for (int i = 0; i < (int)Flower::COUNT; i++) { int u; in >> u; unlocked[i] = (u != 0); }
     int ax, pk; in >> wood >> crystals >> ax >> pk;
     hasAxe = (ax != 0); hasPickaxe = (pk != 0);
+    in >> day;
+}
+
+void Inventory::TickTime(float dt) {
+    dayTimer += dt;
+    if (dayTimer >= DaySeconds) { dayTimer -= DaySeconds; day++; }
+}
+
+float Inventory::PriceFactor(int flower) const {
+    unsigned int h = (unsigned int)(flower * 2654435761u) ^ (unsigned int)(day * 40503u);
+    h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15;
+    return 0.6f + (h % 1001) / 1000.0f;   // 0.60 .. 1.60
+}
+
+int Inventory::CurrentSell(int flower) const {
+    return (int)(FLOWERS[flower].sellPrice * PriceFactor(flower));
 }
 
 void Inventory::CycleSeed() {

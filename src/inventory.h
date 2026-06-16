@@ -34,6 +34,17 @@ public:
     bool hasAxe = false;
     bool hasPickaxe = false;
 
+    // piață: prețurile fluctuează în fiecare "zi"
+    int day = 0;
+    float dayTimer = 0.0f;
+    static constexpr float DaySeconds = 90.0f;
+    static constexpr int WoodPrice = 5;
+    static constexpr int CrystalPrice = 35;
+
+    void TickTime(float dt);              // avansează ziua
+    float PriceFactor(int flower) const;  // 0.6..1.6 în funcție de zi
+    int   CurrentSell(int flower) const;  // preț de vânzare curent (cu fluctuație)
+
     void CycleSeed();   // Q: trece la următoarea floare deblocată
     void Draw(const Texture2D& flowers, const Texture2D& icons) const;
 

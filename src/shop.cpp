@@ -52,8 +52,15 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             inv.seeds[row]++;
         }
         if (IsKeyPressed(KEY_S) && inv.harvested[row] > 0) {
-            inv.money += inv.harvested[row] * FLOWERS[row].sellPrice;
+            inv.money += inv.harvested[row] * inv.CurrentSell(row);   // preț fluctuant
             inv.harvested[row] = 0;
+        }
+        // vinde resurse
+        if (IsKeyPressed(KEY_W) && inv.wood > 0) {
+            inv.money += inv.wood * Inventory::WoodPrice; inv.wood = 0;
+        }
+        if (IsKeyPressed(KEY_C) && inv.crystals > 0) {
+            inv.money += inv.crystals * Inventory::CrystalPrice; inv.crystals = 0;
         }
     }
     else if (tab == 1) {                              // UNELTE
@@ -144,24 +151,38 @@ void Shop::Draw(const Inventory& inv, const Texture2D& flowers, const Texture2D&
 
 void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv,
                     const Texture2D& flowers, const Texture2D& icons) const {
-    DrawText("Cumpara seminte si deblocheaza flori noi. Scopul: Floarea-Soarelui.",
-             x, y, 15, Color{ 190, 200, 190, 255 });
-    for (int i = 0; i < (int)Flower::COUNT; i++) {
-        int ry = y + 28 + i * 62;
-        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 58, Color{ 255, 255, 255, 26 });
+    DrawText(TextFormat("Ziua %d - preturile pietei fluctueaza zilnic. Scop: Floarea-Soarelui.",
+             inv.day), x, y, 15, Color{ 190, 200, 190, 255 });
 
-        DrawTexturePro(flowers, kFlowerBig[i], Rectangle{ (float)x, (float)ry, 42, 42 }, {0,0}, 0, WHITE);
-        DrawText(FLOWERS[i].name, x + 54, ry, 20, WHITE);
+    for (int i = 0; i < (int)Flower::COUNT; i++) {
+        int ry = y + 26 + i * 56;
+        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 52, Color{ 255, 255, 255, 26 });
+
+        DrawTexturePro(flowers, kFlowerBig[i], Rectangle{ (float)x, (float)ry, 40, 40 }, {0,0}, 0, WHITE);
+        DrawText(FLOWERS[i].name, x + 50, ry, 19, WHITE);
 
         if (!inv.unlocked[i]) {
             DrawText(TextFormat("BLOCAT   [U] Deblocheaza: %d", FLOWERS[i].unlockCost),
-                     x + 54, ry + 26, 16, Color{ 230, 150, 150, 255 });
+                     x + 50, ry + 24, 16, Color{ 230, 150, 150, 255 });
         } else {
-            DrawText(TextFormat("[B] Samanta %d   [S] Vinde %d buc x %d   (ai %d sem.)",
-                     FLOWERS[i].seedCost, inv.harvested[i], FLOWERS[i].sellPrice, inv.seeds[i]),
-                     x + 54, ry + 26, 15, Color{ 190, 215, 190, 255 });
+            // indicator de piață: ↑ scump, ↓ ieftin
+            float f = inv.PriceFactor(i);
+            int price = inv.CurrentSell(i);
+            const char* arrow = (f > 1.15f) ? "++" : (f < 0.85f) ? "--" : "=";
+            Color ac = (f > 1.15f) ? Color{ 140,230,140,255 }
+                     : (f < 0.85f) ? Color{ 230,150,150,255 } : Color{ 200,200,200,255 };
+            DrawText(TextFormat("[B] Samanta %d    [S] Vinde %d buc @ %d",
+                     FLOWERS[i].seedCost, inv.harvested[i], price), x + 50, ry + 24, 15,
+                     Color{ 190, 215, 190, 255 });
+            DrawText(arrow, x + w - 28, ry + 22, 18, ac);
         }
     }
+
+    // vânzare resurse
+    int ry = y + 26 + (int)Flower::COUNT * 56;
+    DrawText(TextFormat("[W] Vinde lemn: %d x%d        [C] Vinde cristale: %d x%d",
+             inv.wood, Inventory::WoodPrice, inv.crystals, Inventory::CrystalPrice),
+             x, ry, 16, Color{ 210, 190, 150, 255 });
 }
 
 void Shop::DrawTools(int x, int y, int w, int h, const Inventory& inv) const {

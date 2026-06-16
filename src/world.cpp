@@ -18,21 +18,28 @@ void World::Unload() {
     UnloadTexture(crystalTex);
 }
 
-void World::Generate(int seed, int cx0, int cy0, int cx1, int cy1) {
+void World::Generate(const TileMap& map) {
     nodes.clear();
     const int TS = TileMap::TileSize;
-    for (int ty = 1; ty < TileMap::Height - 1; ty++) {
-        for (int tx = 1; tx < TileMap::Width - 1; tx++) {
-            bool inFarm = (tx >= cx0 && tx < cx1 && ty >= cy0 && ty < cy1);
-            if (inFarm) continue;
-            unsigned int h = Hash(tx * 31 + seed, ty * 17 + seed);
-            if (h % 5 == 0) {                       // copac (baza în tile-ul (tx,ty))
-                float jx = (float)((h>>4)%12) - 6;
-                nodes.push_back({ NodeType::Tree,
-                    { tx*(float)TS + 16 + jx, ty*(float)TS + 30 }, (int)(h%4), 3, 0 });
-            } else if (h % 23 == 0) {               // cristal (mai rar)
-                nodes.push_back({ NodeType::Crystal,
-                    { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, 0, 2, 0 });
+    for (int ty = 0; ty < TileMap::Height; ty++) {
+        for (int tx = 0; tx < TileMap::Width; tx++) {
+            Terrain t = map.At(tx, ty);
+            unsigned int h = Hash(tx * 31, ty * 17);
+            bool path = (ty == 15 || ty == 16);
+
+            if (t == Terrain::Stone) {               // cristale în dungeon
+                if (!path && h % 8 == 0)
+                    nodes.push_back({ NodeType::Crystal,
+                        { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, 0, 2, 0 });
+            }
+            else if (t == Terrain::Grass || t == Terrain::GrassDark) {
+                // copaci în pădure (stânga) + pe marginile de sus/jos (cadru); nu în grădină
+                bool border = (tx <= 15 || ty <= 2 || ty >= TileMap::Height - 3);
+                if (border && !path && h % 3 == 0) {
+                    float jx = (float)((h>>4)%12) - 6;
+                    nodes.push_back({ NodeType::Tree,
+                        { tx*(float)TS + 16 + jx, ty*(float)TS + 30 }, (int)(h%4), 3, 0 });
+                }
             }
         }
     }
