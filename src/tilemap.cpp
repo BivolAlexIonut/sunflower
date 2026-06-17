@@ -17,6 +17,7 @@ static Rectangle SrcFor(Terrain t) {
         case Terrain::Dirt:      return {  80, 16, 16, 16 };
         case Terrain::Stone:     return {  32, 32, 32, 32 };
         case Terrain::Wall:      return {  64,  0, 32, 32 };
+        case Terrain::Fence:     return { 304, 80, 16, 16 };
     }
     return { 304, 80, 16, 16 };
 }
@@ -24,12 +25,14 @@ static Rectangle SrcFor(Terrain t) {
 void TileMap::Load() {
     grounds  = LoadTexture("sprites/Tilesets/FG_Grounds.png");
     fortress = LoadTexture("sprites/RPG Maker/RPG Maker MZ (32x32)/tilesets/FG_Fortress_A5.png");
+    fence    = LoadTexture("sprites/Tilesets/spr_fencePost.png");
     tiles.assign(Width * Height, Terrain::Grass);
 }
 
 void TileMap::Unload() {
     UnloadTexture(grounds);
     UnloadTexture(fortress);
+    UnloadTexture(fence);
 }
 
 void TileMap::Set(int tx, int ty, Terrain t) {
@@ -41,7 +44,10 @@ Terrain TileMap::At(int tx, int ty) const {
     return tiles[Idx(tx, ty)];
 }
 
-bool TileMap::IsSolid(int tx, int ty) const { return At(tx, ty) == Terrain::Wall; }
+bool TileMap::IsSolid(int tx, int ty) const {
+    Terrain t = At(tx, ty);
+    return t == Terrain::Wall || t == Terrain::Fence;
+}
 
 bool TileMap::CanFarm(int tx, int ty) const {
     Terrain t = At(tx, ty);
@@ -138,17 +144,17 @@ void TileMap::Build() {
         for (int pc = 0; pc < PlotCols; pc++)
             if (pc <= 4 && pr <= 3) owned[pr * PlotCols + pc] = 1;
 
-    // pete de iarbă mai închisă pe terenul nou (textură) + în pădure
+    // puține pete de iarbă mai închisă (textură discretă), nu prea multe
     for (int ty = 0; ty < Height; ty++)
         for (int tx = 0; tx < Width; tx++)
-            if ((tx < 16 || tx >= 50 || ty >= 32) && Hash(tx, ty) % 5 == 0)
+            if (Hash(tx, ty) % 11 == 0)
                 Set(tx, ty, Terrain::GrassDark);
 
-    // GRĂDINA (centru) — incintă cu zid, iarbă înăuntru (se plantează doar aici)
+    // GRĂDINA de start (mică) — gard de lemn în jur, iarbă înăuntru
     for (int ty = GY0; ty <= GY1; ty++) {
         for (int tx = GX0; tx <= GX1; tx++) {
             bool border = (tx == GX0 || tx == GX1 || ty == GY0 || ty == GY1);
-            Set(tx, ty, border ? Terrain::Wall : Terrain::Grass);
+            Set(tx, ty, border ? Terrain::Fence : Terrain::Grass);
         }
     }
 
@@ -187,6 +193,17 @@ void TileMap::Draw(const Camera2D& cam) const {
     for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
             Terrain t = tiles[Idx(x, y)];
+            // gardul: iarbă dedesubt + stâlp de lemn (bottom-anchored, puțin mai înalt)
+            if (t == Terrain::Fence) {
+                DrawTexturePro(grounds, SrcFor(Terrain::Grass),
+                    Rectangle{ (float)(x*TileSize), (float)(y*TileSize), (float)TileSize, (float)TileSize },
+                    {0,0}, 0, WHITE);
+                Rectangle fsrc{ 44, 36, 26, 44 };   // un stâlp de gard din spr_fencePost
+                DrawTexturePro(fence, fsrc,
+                    Rectangle{ (float)(x*TileSize), (float)(y*TileSize) - 10, (float)TileSize, (float)TileSize + 10 },
+                    {0,0}, 0, WHITE);
+                continue;
+            }
             const Texture2D& tex = (t == Terrain::Stone || t == Terrain::Wall) ? fortress : grounds;
             Rectangle src = SrcFor(t);
             Rectangle dst{ (float)(x * TileSize), (float)(y * TileSize),

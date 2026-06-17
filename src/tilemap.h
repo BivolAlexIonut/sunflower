@@ -4,7 +4,7 @@
 #include <vector>
 #include <iosfwd>
 
-enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall };
+enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall, Fence };
 
 class TileMap {
 public:
@@ -12,8 +12,8 @@ public:
     static constexpr int Width  = 70;    // mărit: 50x32 conținut + teren nou de cumpărat
     static constexpr int Height = 48;
 
-    // Limitele grădinii (incintă cu zid) și ale dungeon-ului (în tile-uri).
-    static constexpr int GX0 = 17, GY0 = 8, GX1 = 31, GY1 = 23;
+    // Grădina de start: mică, cu gard în jur (în tile-uri).
+    static constexpr int GX0 = 20, GY0 = 11, GX1 = 29, GY1 = 19;
     static constexpr int DunX0 = 34, DunY0 = 5, DunX1 = 49, DunY1 = 26;
 
     // Parcele de teren (Forager): grilă peste hartă; cele de start sunt deținute.
@@ -53,6 +53,7 @@ private:
     std::vector<char> owned;   // parcele deținute (PlotCols*PlotRows)
     Texture2D grounds{};    // FG_Grounds (iarbă/pământ, 16px)
     Texture2D fortress{};   // FG_Fortress_A5 (piatră/zid, 32px)
+    Texture2D fence{};      // spr_fencePost (gard de lemn)
 
     int Idx(int tx, int ty) const { return ty * Width + tx; }
     void Set(int tx, int ty, Terrain t);

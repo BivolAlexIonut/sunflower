@@ -38,6 +38,8 @@ public:
     void Deserialize(std::istream&);
 
     int CropCount() const;   // câte plante sunt în pământ (pentru XP/level)
+    bool Diggable(int tx, int ty) const;   // celulă de iarbă (se poate săpa)
+    void Till(int tx, int ty);             // sapă: iarbă -> pământ
 
     static constexpr int MatureStage = 2;
 

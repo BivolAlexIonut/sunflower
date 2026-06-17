@@ -7,27 +7,29 @@
 #define FBUD(col)   { 64.0f + (col)*16.0f, 0, 16, 16 }
 #define FBLOOM(col) { (col)*16.0f, 0, 16, 16 }
 
+// growTime = secunde per stadiu (2 stadii până la matur). Joc bazat pe timp:
+// florile 1-6 min, copacii ~25 min/udare (scumpi, dar valoroși).
 //   name             seed  sell   grow unlock tex  r1(tânăr)        r2(matur)         scale tree
 const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
-    // FG vară (verde)
-    { "Floare alba",     10,   25, 12.f,    0, 0, FBUD(0), FBLOOM(0), 2.0f, false },
-    { "Floare roz",      25,   65, 14.f,  120, 0, FBUD(1), FBLOOM(1), 2.0f, false },
-    { "Floare rosie",    60,  160, 16.f,  350, 0, FBUD(2), FBLOOM(2), 2.0f, false },
-    { "Floare galbena",  90,  240, 17.f,  600, 0, FBUD(3), FBLOOM(3), 2.0f, false },
-    // FG iarnă (albastre)
-    { "Floare albastra",120,  320, 18.f,  900, 1, FBUD(0), FBLOOM(0), 2.0f, false },
-    { "Gheata roz",     180,  470, 20.f, 1500, 1, FBUD(1), FBLOOM(1), 2.0f, false },
-    { "Gheata rosie",   260,  680, 22.f, 2300, 1, FBUD(2), FBLOOM(2), 2.0f, false },
-    { "Gheata violet",  360,  920, 24.f, 3400, 1, FBUD(3), FBLOOM(3), 2.0f, false },
+    // FG vară (verde) — comune, ieftine
+    { "Floare alba",      8,   30,  45.f,    0, 0, FBUD(0), FBLOOM(0), 2.0f, false },
+    { "Floare roz",      20,   80,  70.f,  150, 0, FBUD(1), FBLOOM(1), 2.0f, false },
+    { "Floare rosie",    45,  190, 100.f,  450, 0, FBUD(2), FBLOOM(2), 2.0f, false },
+    { "Floare galbena",  80,  320, 130.f,  800, 0, FBUD(3), FBLOOM(3), 2.0f, false },
+    // FG iarnă (albastre) — rare
+    { "Floare albastra",140,  520, 160.f, 1400, 1, FBUD(0), FBLOOM(0), 2.0f, false },
+    { "Gheata roz",     220,  780, 190.f, 2200, 1, FBUD(1), FBLOOM(1), 2.0f, false },
+    { "Gheata rosie",   320, 1100, 220.f, 3400, 1, FBUD(2), FBLOOM(2), 2.0f, false },
+    { "Gheata violet",  460, 1550, 260.f, 5000, 1, FBUD(3), FBLOOM(3), 2.0f, false },
     // FG toamnă (olive)
-    { "Toamna alba",     70,  190, 16.f,  500, 2, FBUD(0), FBLOOM(0), 2.0f, false },
-    { "Toamna roz",     110,  300, 18.f,  900, 2, FBUD(1), FBLOOM(1), 2.0f, false },
-    { "Toamna rosie",   170,  440, 20.f, 1400, 2, FBUD(2), FBLOOM(2), 2.0f, false },
-    { "Toamna aurie",   240,  640, 22.f, 2100, 2, FBUD(3), FBLOOM(3), 2.0f, false },
-    // Plants&supplies (sprite-uri bogate)
-    { "Floarea-soarelui",500,1300, 30.f, 4500, 3, { 33,405,30,28 }, { 63,388,36,46 }, 1.5f, false },
-    { "Copac de mere",   300, 220, 26.f, 2800, 3, { 248,146,56,60 }, { 325,144,55,62 }, 1.0f, true  },
-    { "Copac de prune",  340, 260, 28.f, 3200, 3, { 248, 96,58,46 }, { 325, 96,55,46 }, 1.1f, true  },
+    { "Toamna alba",     60,  240, 100.f,  700, 2, FBUD(0), FBLOOM(0), 2.0f, false },
+    { "Toamna roz",     100,  400, 130.f, 1200, 2, FBUD(1), FBLOOM(1), 2.0f, false },
+    { "Toamna rosie",   160,  600, 160.f, 1900, 2, FBUD(2), FBLOOM(2), 2.0f, false },
+    { "Toamna aurie",   240,  880, 190.f, 2800, 2, FBUD(3), FBLOOM(3), 2.0f, false },
+    // Plants&supplies — floarea-soarelui (țel) + copaci (scumpi, lenți, valoroși)
+    { "Floarea-soarelui",600,2200, 300.f, 6000, 3, { 33,405,30,28 }, { 63,388,36,46 }, 1.5f, false },
+    { "Copac de mere",   700, 700,1500.f, 4000, 3, { 248,146,56,60 }, { 325,144,55,62 }, 1.0f, true  },
+    { "Copac de prune",  900, 950,1500.f, 5000, 3, { 248, 96,58,46 }, { 325, 96,55,46 }, 1.1f, true  },
 };
 #undef FBUD
 #undef FBLOOM
@@ -144,9 +146,12 @@ void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {
     DrawTexturePro(icons, kCoinIcon, Rectangle{ 16, 14, 28, 28 }, { 0, 0 }, 0.0f, WHITE);
     DrawText(TextFormat("%d", money), 50, 16, 26, Color{ 255, 220, 90, 255 });
 
-    // Resurse (lemn, cristale)
+    // Resurse (lemn, cristale, materiale de construcție)
     DrawText(TextFormat("Lemn: %d", wood), 16, 46, 18, Color{ 200, 160, 110, 255 });
     DrawText(TextFormat("Cristale: %d", crystals), 120, 46, 18, Color{ 130, 210, 230, 255 });
+    if (roadCount > 0 || stoneCount > 0)
+        DrawText(TextFormat("Drum: %d  Piatra: %d  (B = construieste)", roadCount, stoneCount),
+                 16, 66, 15, Color{ 210, 190, 150, 255 });
 
     // Bară de semințe: TOATE semințele pe care le ai (ce poți planta acum)
     int owned[(int)Flower::COUNT], cnt = 0;
