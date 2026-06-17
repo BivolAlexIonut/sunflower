@@ -9,8 +9,7 @@ class Player;
 class Shop {
 public:
     void HandleInput(Inventory& inv, Player& player);
-    void Draw(const Inventory& inv, const Texture2D& summer, const Texture2D& winter,
-              const Texture2D& icons) const;
+    void Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& icons) const;
 
     bool BlocksGameplay() const { return open; }
 
@@ -31,8 +30,7 @@ private:
 
     void DrawFrame(int& x, int& y, int& w, int& h) const;
     void DrawTabs(int x, int y, int w) const;
-    void DrawShop(int x, int y, int w, int h, const Inventory& inv,
-                  const Texture2D& summer, const Texture2D& winter) const;
+    void DrawShop(int x, int y, int w, int h, const Inventory& inv, const Texture2D* ftex) const;
     void DrawTools(int x, int y, int w, int h, const Inventory& inv) const;
     void DrawSkins(int x, int y, int w, int h, const Inventory& inv) const;
     void DrawHelp(int x, int y, int w, int h) const;

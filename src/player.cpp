@@ -129,9 +129,12 @@ void Player::Draw() const {
 void Player::DrawSide(float scale, float groundY) const {
     const Texture2D& sheet = tex[(int)action][(int)dir];
 
+    // conținutul personajului se termină la y≈23 din 32 → ~8px gol sub picioare;
+    // compensăm ca tălpile să atingă solul (nu să plutească)
+    const float footPad = 8.0f;
     Rectangle src{ (float)(frame * FrameW), 0, (float)FrameW, (float)FrameH };
     float w = FrameW * scale, h = FrameH * scale;
-    Rectangle dst{ position.x, groundY, w, h };
-    Vector2 origin{ w / 2.0f, h };   // ancoră jos-centru → picioarele pe sol
+    Rectangle dst{ position.x, groundY + footPad * scale, w, h };
+    Vector2 origin{ w / 2.0f, h };   // ancoră jos-centru
     DrawTexturePro(sheet, src, dst, origin, 0.0f, WHITE);
 }

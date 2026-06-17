@@ -126,8 +126,7 @@ void Shop::DrawTabs(int x, int y, int w) const {
     DrawRectangle(x, y + 40, w, 3, Color{ 255, 220, 90, 255 });
 }
 
-void Shop::Draw(const Inventory& inv, const Texture2D& summer, const Texture2D& winter,
-                const Texture2D& icons) const {
+void Shop::Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& icons) const {
     if (!open) return;
     int x, y, w, h;
     DrawFrame(x, y, w, h);
@@ -138,7 +137,7 @@ void Shop::Draw(const Inventory& inv, const Texture2D& summer, const Texture2D& 
     DrawText(TextFormat("%d", inv.money), x + w - 80, y + 10, 22, Color{ 255, 220, 90, 255 });
 
     int cx = x + 20, cy = y + 56, cw = w - 40, ch = h - 76;
-    if (tab == 0) DrawShop(cx, cy, cw, ch, inv, summer, winter);
+    if (tab == 0) DrawShop(cx, cy, cw, ch, inv, ftex);
     if (tab == 1) DrawTools(cx, cy, cw, ch, inv);
     if (tab == 2) DrawSkins(cx, cy, cw, ch, inv);
     if (tab == 3) DrawHelp(cx, cy, cw, ch);
@@ -147,37 +146,43 @@ void Shop::Draw(const Inventory& inv, const Texture2D& summer, const Texture2D& 
              x + 20, y + h - 28, 15, Color{ 170, 170, 170, 255 });
 }
 
-void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv,
-                    const Texture2D& summer, const Texture2D& winter) const {
-    DrawText(TextFormat("Ziua %d - preturile fluctueaza zilnic. Scop final: Floarea-Soarelui.",
-             inv.day), x, y, 14, Color{ 190, 200, 190, 255 });
+void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv, const Texture2D* ftex) const {
+    DrawText(TextFormat("Ziua %d - preturile fluctueaza. Sus/Jos deruleaza lista.", inv.day),
+             x, y, 14, Color{ 190, 200, 190, 255 });
 
-    for (int i = 0; i < (int)Flower::COUNT; i++) {
-        int ry = y + 22 + i * 42;
-        if (i == row) DrawRectangle(x - 6, ry - 4, w + 12, 40, Color{ 255, 255, 255, 26 });
+    const int n = (int)Flower::COUNT;
+    const int visible = 8;                       // câte rânduri arătăm odată
+    int first = row - visible / 2;               // fereastra de derulare în jurul selecției
+    if (first < 0) first = 0;
+    if (first > n - visible) first = (n > visible) ? n - visible : 0;
+    int last = (first + visible < n) ? first + visible : n;
 
-        const Texture2D& sheet = (FLOWERS[i].sheet == 0) ? summer : winter;
-        DrawTexturePro(sheet, FlowerBloom(FLOWERS[i].col),
-            Rectangle{ (float)x, (float)ry, 32, 32 }, {0,0}, 0, WHITE);
-        DrawText(FLOWERS[i].name, x + 40, ry, 17, WHITE);
+    for (int i = first; i < last; i++) {
+        int ry = y + 22 + (i - first) * 40;
+        if (i == row) DrawRectangle(x - 6, ry - 4, w + 12, 38, Color{ 255, 255, 255, 30 });
+
+        const FlowerInfo& fi = FLOWERS[i];
+        DrawTexturePro(ftex[fi.tex], fi.r2, Rectangle{ (float)x, (float)ry, 32, 32 }, {0,0}, 0, WHITE);
+        DrawText(fi.name, x + 40, ry, 17, WHITE);
 
         if (!inv.unlocked[i]) {
-            DrawText(TextFormat("BLOCAT  [U] %d", FLOWERS[i].unlockCost),
+            DrawText(TextFormat("BLOCAT  [U] %d", fi.unlockCost),
                      x + 40, ry + 19, 14, Color{ 230, 150, 150, 255 });
         } else {
             float f = inv.PriceFactor(i);
-            int price = inv.CurrentSell(i);
             const char* arrow = (f > 1.15f) ? "++" : (f < 0.85f) ? "--" : "=";
             Color ac = (f > 1.15f) ? Color{ 140,230,140,255 }
                      : (f < 0.85f) ? Color{ 230,150,150,255 } : Color{ 200,200,200,255 };
             DrawText(TextFormat("[B] sam.%d   [S] vinde %d @ %d",
-                     FLOWERS[i].seedCost, inv.harvested[i], price), x + 40, ry + 19, 14,
+                     fi.seedCost, inv.harvested[i], inv.CurrentSell(i)), x + 40, ry + 19, 14,
                      Color{ 190, 215, 190, 255 });
             DrawText(arrow, x + w - 26, ry + 8, 18, ac);
         }
     }
 
-    int ry = y + 22 + (int)Flower::COUNT * 42;
+    // indicator scroll + vânzare resurse
+    DrawText(TextFormat("(%d/%d)", row + 1, n), x + w - 70, y, 14, Color{ 170,170,170,255 });
+    int ry = y + 22 + visible * 40 + 4;
     DrawText(TextFormat("[W] Vinde lemn: %d x%d     [C] Vinde cristale: %d x%d",
              inv.wood, Inventory::WoodPrice, inv.crystals, Inventory::CrystalPrice),
              x, ry, 15, Color{ 210, 190, 150, 255 });

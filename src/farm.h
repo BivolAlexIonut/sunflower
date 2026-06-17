@@ -38,8 +38,7 @@ public:
 private:
     std::vector<Cell> cells;
     Texture2D soilAtlas{};   // FG_Grounds (pentru tile-ul de pământ)
-    Texture2D summer{};      // FG_Grass_Summer
-    Texture2D winter{};      // FG_Grass_Winter
+    Texture2D ftex[4]{};     // 0 vară, 1 iarnă, 2 toamnă, 3 Plants
 
     int Idx(int tx, int ty) const;
     bool InBounds(int tx, int ty) const;

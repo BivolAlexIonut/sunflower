@@ -102,13 +102,15 @@ void Market::Draw(const Player& player, const Inventory& inv) const {
         DrawTexture(groundFill, x, (int)GroundY + gw, WHITE);     // pământ sub
     }
 
-    // clădiri scunde cu acoperiș vizibil (zid + acoperiș înclinat + ușă)
+    // clădiri cu acoperiș LIPIT de zid (zidul are ~20px gol sus → calculăm vârful vizibil)
     auto building = [&](float x){
-        DrawProp(wall, x, 190, GroundY);
-        DrawProp(roof, x, 105, GroundY - 190);
-        DrawProp(door, x, 130, GroundY);
+        float wallH = 205;
+        DrawProp(wall, x, wallH, GroundY);
+        float wallTop = GroundY - 298.0f * (wallH / 320.0f);   // marginea vizibilă de sus a zidului
+        DrawProp(roof, x, 112, wallTop + 22);                  // acoperișul se suprapune peste zid
+        DrawProp(door, x, 140, GroundY);
     };
-    building(170);
+    building(180);
     building(1740);
 
     // decor pe stradă (spațiat, fără suprapuneri urâte)

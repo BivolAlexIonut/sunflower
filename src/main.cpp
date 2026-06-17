@@ -33,10 +33,14 @@ int main() {
     Player player;     player.Load("Character01");
     player.position = { 24 * TS + 16.0f, 12 * TS + 16.0f };   // grădina
 
-    Texture2D iconTex      = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
-    Texture2D flowerSummer = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
-    Texture2D flowerWinter = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
-    Texture2D marketSign   = LoadTexture("sprites/Market/Environment/Sign_03.png");
+    Texture2D iconTex    = LoadTexture("sprites/Item Icons/FG_Item_Icons.png");
+    Texture2D marketSign = LoadTexture("sprites/Market/Environment/Sign_03.png");
+    Texture2D flowerTex[4] = {
+        LoadTexture("sprites/Objects/FG_Grass_Summer.png"),
+        LoadTexture("sprites/Objects/FG_Grass_Winter.png"),
+        LoadTexture("sprites/Objects/FG_Grass_Fall.png"),
+        LoadTexture("sprites/Plants&supplies/Plants.png"),
+    };
 
     Market market;     market.Load();
     Scene scene = Scene::World;
@@ -167,7 +171,7 @@ int main() {
         EndMode2D();
 
         // HUD
-        inventory.Draw(flowerSummer, flowerWinter, iconTex);
+        inventory.Draw(flowerTex, iconTex);
         DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
         if (nearMarket && !frozen) {
             const char* m = "[E] Intra in Market";
@@ -175,7 +179,7 @@ int main() {
             DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
             DrawText(m, screenW/2 - w/2, 66, 22, WHITE);
         }
-        shop.Draw(inventory, flowerSummer, flowerWinter, iconTex);
+        shop.Draw(inventory, flowerTex, iconTex);
 
         EndDrawing();
     }
@@ -186,8 +190,7 @@ int main() {
 
     market.Unload();
     UnloadTexture(marketSign);
-    UnloadTexture(flowerSummer);
-    UnloadTexture(flowerWinter);
+    for (int i = 0; i < 4; i++) UnloadTexture(flowerTex[i]);
     UnloadTexture(iconTex);
     world.Unload();
     farm.Unload();

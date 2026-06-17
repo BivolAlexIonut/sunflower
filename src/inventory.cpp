@@ -3,25 +3,37 @@
 #include <ostream>
 #include <istream>
 
-//                    name              seed  sell  grow  unlock sheet col
+// Helperi pt. dreptunghiurile florilor FG (16x16): boboc (stadiu 1) + floare mare (stadiu 2).
+#define FBUD(col)   { 64.0f + (col)*16.0f, 0, 16, 16 }
+#define FBLOOM(col) { (col)*16.0f, 0, 16, 16 }
+
+//   name             seed  sell   grow unlock tex  r1(tânăr)        r2(matur)         scale tree
 const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
-    { "Floare alba",      10,   25, 12.0f,    0, 0, 0 },
-    { "Floare roz",       25,   65, 14.0f,  120, 0, 1 },
-    { "Floare rosie",     60,  160, 16.0f,  350, 0, 2 },
-    { "Floare albastra", 120,  320, 18.0f,  800, 1, 0 },
-    { "Gheata roz",      200,  520, 20.0f, 1500, 1, 1 },
-    { "Gheata rosie",    320,  820, 22.0f, 2500, 1, 2 },
-    { "Gheata violet",   480, 1250, 25.0f, 4000, 1, 3 },
-    { "Floarea-soarelui",800, 2100, 32.0f, 6500, 0, 3 },
+    // FG vară (verde)
+    { "Floare alba",     10,   25, 12.f,    0, 0, FBUD(0), FBLOOM(0), 2.0f, false },
+    { "Floare roz",      25,   65, 14.f,  120, 0, FBUD(1), FBLOOM(1), 2.0f, false },
+    { "Floare rosie",    60,  160, 16.f,  350, 0, FBUD(2), FBLOOM(2), 2.0f, false },
+    { "Floare galbena",  90,  240, 17.f,  600, 0, FBUD(3), FBLOOM(3), 2.0f, false },
+    // FG iarnă (albastre)
+    { "Floare albastra",120,  320, 18.f,  900, 1, FBUD(0), FBLOOM(0), 2.0f, false },
+    { "Gheata roz",     180,  470, 20.f, 1500, 1, FBUD(1), FBLOOM(1), 2.0f, false },
+    { "Gheata rosie",   260,  680, 22.f, 2300, 1, FBUD(2), FBLOOM(2), 2.0f, false },
+    { "Gheata violet",  360,  920, 24.f, 3400, 1, FBUD(3), FBLOOM(3), 2.0f, false },
+    // FG toamnă (olive)
+    { "Toamna alba",     70,  190, 16.f,  500, 2, FBUD(0), FBLOOM(0), 2.0f, false },
+    { "Toamna roz",     110,  300, 18.f,  900, 2, FBUD(1), FBLOOM(1), 2.0f, false },
+    { "Toamna rosie",   170,  440, 20.f, 1400, 2, FBUD(2), FBLOOM(2), 2.0f, false },
+    { "Toamna aurie",   240,  640, 22.f, 2100, 2, FBUD(3), FBLOOM(3), 2.0f, false },
+    // Plants&supplies (sprite-uri bogate)
+    { "Floarea-soarelui",500,1300, 30.f, 4500, 3, { 33,405,30,28 }, { 63,388,36,46 }, 1.5f, false },
+    { "Copac de mere",   300, 220, 26.f, 2800, 3, { 248,215,62,30 }, { 325,144,55,62 }, 1.1f, true  },
+    { "Copac de prune",  340, 260, 28.f, 3200, 3, { 248,215,62,30 }, { 325, 96,55,46 }, 1.2f, true  },
 };
+#undef FBUD
+#undef FBLOOM
 
 // Iconița de monede din FG_Item_Icons.png
 static const Rectangle kCoinIcon = { 0, 80, 16, 16 };
-
-// Alege textura sheet-ului unei flori (vară / iarnă).
-static const Texture2D& SheetFor(int flower, const Texture2D& summer, const Texture2D& winter) {
-    return (FLOWERS[flower].sheet == 0) ? summer : winter;
-}
 
 void Inventory::Serialize(std::ostream& o) const {
     o << money << " " << selectedSeed << "\n";
@@ -64,7 +76,7 @@ void Inventory::CycleSeed() {
     }
 }
 
-void Inventory::Draw(const Texture2D& summer, const Texture2D& winter, const Texture2D& icons) const {
+void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {
     // Bani (sus-stânga) cu iconița de monede
     DrawTexturePro(icons, kCoinIcon, Rectangle{ 16, 14, 28, 28 }, { 0, 0 }, 0.0f, WHITE);
     DrawText(TextFormat("%d", money), 50, 16, 26, Color{ 255, 220, 90, 255 });
@@ -81,9 +93,8 @@ void Inventory::Draw(const Texture2D& summer, const Texture2D& winter, const Tex
     DrawRectangle(x0, y0, slot, slot, Color{ 40, 30, 20, 210 });
     DrawRectangleLinesEx(Rectangle{ (float)x0, (float)y0, (float)slot, (float)slot }, 3,
                          Color{ 255, 220, 90, 255 });
-    const Texture2D& sheet = SheetFor(selectedSeed, summer, winter);
-    Rectangle src = FlowerBloom(FLOWERS[selectedSeed].col);
-    DrawTexturePro(sheet, src, Rectangle{ x0 + 12.0f, y0 + 8.0f, 40, 40 }, { 0, 0 }, 0.0f, WHITE);
+    const FlowerInfo& fi = FLOWERS[selectedSeed];
+    DrawTexturePro(ftex[fi.tex], fi.r2, Rectangle{ x0 + 8.0f, y0 + 6.0f, 48, 48 }, { 0, 0 }, 0.0f, WHITE);
     DrawText(TextFormat("x%d", seeds[selectedSeed]), x0 + 6, y0 + slot - 20, 18, WHITE);
 
     // numele florii selectate + câte are recoltate

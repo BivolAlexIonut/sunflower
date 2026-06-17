@@ -13,13 +13,14 @@ Farm::Farm() { cells.resize(TileMap::Width * TileMap::Height); }
 
 void Farm::Load() {
     soilAtlas = LoadTexture("sprites/Tilesets/FG_Grounds.png");
-    summer    = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
-    winter    = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
+    ftex[0] = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
+    ftex[1] = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
+    ftex[2] = LoadTexture("sprites/Objects/FG_Grass_Fall.png");
+    ftex[3] = LoadTexture("sprites/Plants&supplies/Plants.png");
 }
 void Farm::Unload() {
     UnloadTexture(soilAtlas);
-    UnloadTexture(summer);
-    UnloadTexture(winter);
+    for (int i = 0; i < 4; i++) UnloadTexture(ftex[i]);
 }
 
 int Farm::Idx(int tx, int ty) const { return ty * TileMap::Width + tx; }
@@ -61,8 +62,15 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
             }
             break;
         case Plot::Crop:
-            if (c.stage >= MatureStage) {            // recoltează
-                inv.harvested[c.flower]++;
+            if (c.stage >= MatureStage) {            // matură
+                if (FLOWERS[c.flower].isTree) {       // copac → se taie cu toporul (dă lemn + fruct)
+                    if (!inv.hasAxe) break;           // fără topor nu poți tăia
+                    player.StartAction(Action::Axe);
+                    inv.harvested[c.flower]++;
+                    inv.wood += 2;
+                } else {                              // floare → se culege
+                    inv.harvested[c.flower]++;
+                }
                 c.plot = Plot::Soil;
                 c.stage = 0;
                 c.growth = 0.0f;
@@ -118,17 +126,15 @@ void Farm::DrawGround(const Camera2D& cam) const {
                 DrawRectangle(x*TS, y*TS, TS, TS, Color{ 20, 30, 80, 70 });   // pământ ud
         }
     }
-    // florile (bottom-anchored, scalate) — sheet după tipul florii (vară/iarnă)
-    const float sc = 2.0f;
+    // plantele (bottom-anchored) — textură, rect și scală după tipul plantei
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
         if (c.plot != Plot::Crop) continue;
         if (c.stage > 0) {
-            int col = FLOWERS[c.flower].col;
-            Rectangle src = (c.stage == 1) ? FlowerBud(col) : FlowerBloom(col);
-            const Texture2D& tex = (FLOWERS[c.flower].sheet == 0) ? summer : winter;
-            float w = src.width * sc, h = src.height * sc;
-            DrawTexturePro(tex, src,
+            const FlowerInfo& fi = FLOWERS[c.flower];
+            Rectangle src = (c.stage == 1) ? fi.r1 : fi.r2;
+            float w = src.width * fi.scale, h = src.height * fi.scale;
+            DrawTexturePro(ftex[fi.tex], src,
                 Rectangle{ x*TS + TS/2.0f - w/2.0f, (y+1.0f)*TS - h, w, h }, {0,0}, 0, WHITE);
         }
         // indicator "are nevoie de apă": picătură albastră care plutește deasupra

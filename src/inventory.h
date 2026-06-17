@@ -3,38 +3,33 @@
 #include "raylib.h"
 #include <iosfwd>
 
-// Tipurile de flori = rarități. Vară (verde) + iarnă (albastre).
-// Floarea-soarelui = țelul final.
-enum class Flower {
-    White, Pink, Red,           // vară (col 0,1,2)
-    Blue, IcePink, IceRed, IceViolet,  // iarnă (col 0,1,2,3)
-    Sunflower,                  // vară (col 3) — final
-    COUNT
-};
+// Plante de plantat (flori, copaci etc.). Indexate doar prin poziție; COUNT = nr. total.
+enum class Flower { COUNT = 15 };
+
+// Texturile de plante (indexate de FlowerInfo.tex):
+//  0 = FG_Grass_Summer, 1 = FG_Grass_Winter, 2 = FG_Grass_Fall, 3 = Plants&supplies/Plants
+static constexpr int FlowerTexCount = 4;
 
 struct FlowerInfo {
     const char* name;
     int   seedCost;     // preț sămânță la magazin
-    int   sellPrice;    // preț de vânzare floare
+    int   sellPrice;    // preț de vânzare la recoltare
     float growTime;     // secunde per stadiu de creștere
-    int   unlockCost;   // cât costă deblocarea acestui tip (0 = de la start)
-    int   sheet;        // 0 = FG_Grass_Summer, 1 = FG_Grass_Winter
-    int   col;          // coloana culorii (0..3) în sheet
+    int   unlockCost;   // cât costă deblocarea (0 = de la start)
+    int   tex;          // ce textură (vezi mai sus)
+    Rectangle r1, r2;   // dreptunghi sursă pt. stadiul 1 (tânăr) și 2 (matur)
+    float scale;        // factor de desenare
+    bool  isTree;       // true = se recoltează cu toporul (dă și lemn)
 };
 
-// Indexat după enum Flower.
 extern const FlowerInfo FLOWERS[(int)Flower::COUNT];
-
-// Dreptunghiuri sursă în sheet-ul de flori (16x16): floare mare (matură) și boboc.
-inline Rectangle FlowerBloom(int col) { return Rectangle{ col * 16.0f, 0, 16, 16 }; }
-inline Rectangle FlowerBud(int col)   { return Rectangle{ 64.0f + col * 16.0f, 0, 16, 16 }; }
 
 class Inventory {
 public:
     int money = 50;
-    int seeds[(int)Flower::COUNT]     = { 3, 0, 0, 0, 0, 0, 0, 0 };  // start: 3 semințe albe
-    int harvested[(int)Flower::COUNT] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    bool unlocked[(int)Flower::COUNT] = { true, false, false, false, false, false, false, false };
+    int seeds[(int)Flower::COUNT]     = { 3 };       // start: 3 semințe albe (restul 0)
+    int harvested[(int)Flower::COUNT] = { 0 };
+    bool unlocked[(int)Flower::COUNT] = { true };    // doar prima deblocată la start
     int selectedSeed = 0;
 
     // resurse din lume
@@ -57,7 +52,7 @@ public:
     int   CurrentSell(int flower) const;  // preț de vânzare curent (cu fluctuație)
 
     void CycleSeed();   // Q: trece la următoarea floare deblocată
-    void Draw(const Texture2D& summer, const Texture2D& winter, const Texture2D& icons) const;
+    void Draw(const Texture2D* ftex, const Texture2D& icons) const;   // ftex = array[FlowerTexCount]
 
     void Serialize(std::ostream&) const;
     void Deserialize(std::istream&);
