@@ -24,7 +24,7 @@ public:
     void Load();
     void Unload();
 
-    void Update(float dt);
+    void Update(float dt, bool autoWater, bool fastGrow);
     void DrawGround(const Camera2D& cam) const;
     void DrawTargetHighlight(int ax, int ay, int size, bool inRange) const;
 

@@ -168,6 +168,11 @@ void TileMap::Build() {
     Set(GX0, 15, Terrain::Grass);  Set(GX0, 16, Terrain::Grass);   // grădină stânga
     Set(GX1, 15, Terrain::Grass);  Set(GX1, 16, Terrain::Grass);   // grădină dreapta
     Set(DunX0, 15, Terrain::Stone); Set(DunX0, 16, Terrain::Stone); // dungeon stânga
+
+    // curtea casei (jos, sub grădină) — platformă de pământ pentru power-up-uri + cufăr
+    for (int ty = 28; ty <= 30; ty++)
+        for (int tx = 10; tx <= 33; tx++)
+            Set(tx, ty, Terrain::Dirt);
 }
 
 void TileMap::Draw(const Camera2D& cam) const {

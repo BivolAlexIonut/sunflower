@@ -69,6 +69,14 @@ public:
     void EnsureValidSeed();               // selectează o sămânță pe care o ai (dacă cea curentă e 0)
     void DrawLevel(int plantedCount) const;
 
+    // Power-up-uri (buff-uri temporare): 0 viteză, 1 auto-udare, 2 creștere rapidă,
+    //                                    3 bonus bani, 4 bonus XP
+    static constexpr int BuffCount = 5;
+    float buff[BuffCount] = { 0, 0, 0, 0, 0 };   // secunde rămase
+    void AddBuff(int t, float sec) { if (t >= 0 && t < BuffCount) buff[t] = sec; }
+    bool BuffActive(int t) const { return t >= 0 && t < BuffCount && buff[t] > 0.0f; }
+    void UpdateBuffs(float dt) { for (int i = 0; i < BuffCount; i++) if (buff[i] > 0) buff[i] -= dt; }
+
     void CycleSeed();   // Q: trece la următoarea floare deblocată
     void Draw(const Texture2D* ftex, const Texture2D& icons) const;   // ftex = array[FlowerTexCount]
 

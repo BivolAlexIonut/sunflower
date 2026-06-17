@@ -47,6 +47,7 @@ int main() {
     Vector2 worldReturnPos = player.position;
 
     Texture2D chestTex = LoadTexture("sprites/Objects/FG_Treasure_Big.png");
+    Texture2D suppliesTex = LoadTexture("sprites/Plants&supplies/Supplies.png");
 
     // intrarea în market: un panou lângă cărare (în pădure, sub drum)
     Vector2 marketSpot = { 7 * TS + 16.0f, 18 * TS + 0.0f };
@@ -54,6 +55,18 @@ int main() {
     Vector2 chestSpot = { 24 * TS + 0.0f, 29 * TS + 0.0f };
     bool storageOpen = false;
     int  storageRow = 0;
+
+    // power-up-uri (lăzi cu provizii) lângă casă: fiecare dă un buff de 5 min
+    struct PowerUp { Vector2 pos; Rectangle icon; int buff; int cost; const char* name; };
+    PowerUp powerups[] = {
+        { { 12*TS+16.0f, 29*TS+0.0f }, {   0, 2, 30, 42 }, 0,  60, "Viteza"          },
+        { { 15*TS+16.0f, 29*TS+0.0f }, {  32, 2, 30, 42 }, 1, 130, "Auto-udare"      },
+        { { 18*TS+16.0f, 29*TS+0.0f }, {  64, 2, 30, 42 }, 2, 110, "Crestere rapida" },
+        { { 28*TS+16.0f, 29*TS+0.0f }, { 192, 2, 30, 42 }, 3, 150, "Bonus bani"      },
+        { { 31*TS+16.0f, 29*TS+0.0f }, { 224, 2, 30, 42 }, 4, 100, "Bonus XP"        },
+    };
+    const int powerupCount = 5;
+    const float BuffDuration = 300.0f;   // 5 minute
 
     // dungeon: dreptunghi în pixeli, pentru ambianța întunecată
     Rectangle dunRect{
@@ -127,6 +140,18 @@ int main() {
             storageOpen = true; storageRow = 0;
         }
 
+        // power-up-uri: stația cea mai apropiată
+        int nearPowerup = -1;
+        for (int i = 0; i < powerupCount; i++)
+            if (fabsf(player.position.x - powerups[i].pos.x) < 40 &&
+                fabsf(player.position.y - powerups[i].pos.y + 16) < 48) { nearPowerup = i; break; }
+        if (!frozen && !landMode && !storageOpen && nearPowerup >= 0 && IsKeyPressed(KEY_E)) {
+            if (inventory.money >= powerups[nearPowerup].cost) {
+                inventory.money -= powerups[nearPowerup].cost;
+                inventory.AddBuff(powerups[nearPowerup].buff, BuffDuration);
+            }
+        }
+
         bool blockGameplay = frozen || landMode || storageOpen;
 
         Vector2 mw = GetScreenToWorld2D(GetMousePosition(), camera);
@@ -171,9 +196,11 @@ int main() {
             if (player.position.x > map.WorldWidth() - 16)  player.position.x = map.WorldWidth() - 16;
             if (player.position.y > map.WorldHeight() - 16) player.position.y = map.WorldHeight() - 16;
 
-            farm.Update(dt);
+            player.speed = inventory.BuffActive(0) ? 200.0f : 130.0f;   // power-up viteză
+            farm.Update(dt, inventory.BuffActive(1), inventory.BuffActive(2));
             world.Update(dt);
             inventory.TickTime(dt);
+            inventory.UpdateBuffs(dt);
 
             if (nearMarket && IsKeyPressed(KEY_E)) {           // intră în market
                 worldReturnPos = player.position;
@@ -247,12 +274,22 @@ int main() {
             DrawTexturePro(chestTex, { 0,0,(float)chestTex.width,(float)chestTex.height },
                 { chestSpot.x, chestSpot.y, 72, 36 }, { 36, 36 }, 0, WHITE);
         };
+        auto drawPowerups = [&](bool front){
+            for (int i = 0; i < powerupCount; i++) {
+                if ((powerups[i].pos.y > pFeet) != front) continue;
+                float h = 50, w = powerups[i].icon.width * (h / powerups[i].icon.height);
+                DrawTexturePro(suppliesTex, powerups[i].icon,
+                    { powerups[i].pos.x, powerups[i].pos.y, w, h }, { w/2, h }, 0, WHITE);
+            }
+        };
         world.DrawBehind(pFeet);
         if (marketSpot.y <= pFeet) drawSign();
         if (chestSpot.y  <= pFeet) drawChest();
+        drawPowerups(false);
         player.Draw();
         if (marketSpot.y > pFeet) drawSign();
         if (chestSpot.y  > pFeet) drawChest();
+        drawPowerups(true);
         world.DrawFront(pFeet);
 
         // ceața peste parcelele necumpărate (densă în joc, ușoară în modul hartă)
@@ -323,6 +360,24 @@ int main() {
             DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
             DrawText(m, screenW/2 - w/2, 66, 22, WHITE);
         }
+        if (nearPowerup >= 0 && !blockGameplay) {
+            const char* m = TextFormat("[E] %s  -  %d bani  (5 min)",
+                                       powerups[nearPowerup].name, powerups[nearPowerup].cost);
+            int w = MeasureText(m, 22);
+            DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,170 });
+            DrawText(m, screenW/2 - w/2, 66, 22, Color{ 255, 230, 150, 255 });
+        }
+        // buff-uri active (sub resurse, stânga)
+        {
+            static const char* bn[5] = { "Viteza", "Auto-udare", "Crestere rapida", "Bonus bani", "Bonus XP" };
+            int by = 72;
+            for (int i = 0; i < Inventory::BuffCount; i++) if (inventory.buff[i] > 0) {
+                int s = (int)inventory.buff[i];
+                DrawText(TextFormat("%s  %d:%02d", bn[i], s/60, s%60), 16, by, 16,
+                         Color{ 180, 240, 180, 255 });
+                by += 20;
+            }
+        }
         // panoul depozitului de semințe
         if (storageOpen) {
             int owned[(int)Flower::COUNT], cnt = 0;
@@ -356,6 +411,7 @@ int main() {
                  (scene == Scene::Market) ? worldReturnPos : player.position);
 
     market.Unload();
+    UnloadTexture(suppliesTex);
     UnloadTexture(chestTex);
     UnloadTexture(marketSign);
     for (int i = 0; i < 4; i++) UnloadTexture(flowerTex[i]);

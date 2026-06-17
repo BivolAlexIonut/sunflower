@@ -6,7 +6,7 @@
 #include <fstream>
 #include <string>
 
-static const int kSaveVersion = 10;
+static const int kSaveVersion = 11;
 
 void SaveIO::Save(const char* path, const Inventory& inv, const Shop& shop,
                   const Farm& farm, const TileMap& map, Vector2 playerPos) {

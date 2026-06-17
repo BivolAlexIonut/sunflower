@@ -34,16 +34,19 @@ bool Farm::InBounds(int tx, int ty) const {
     return tx >= 0 && ty >= 0 && tx < TileMap::Width && ty < TileMap::Height;
 }
 
-void Farm::Update(float dt) {
+void Farm::Update(float dt, bool autoWater, bool fastGrow) {
+    float gmul = fastGrow ? 2.0f : 1.0f;   // power-up creștere rapidă
     for (auto& c : cells) {
         if (c.big == 2) continue;   // celulele acoperite de un copac 2x2 nu cresc singure
-        // crește DOAR dacă e udată; după ce avansează un stadiu, are nevoie de udare din nou
-        if (c.plot == Plot::Crop && c.stage < MatureStage && c.watered) {
-            c.growth += dt;
-            if (c.growth >= FLOWERS[c.flower].growTime) {
-                c.growth = 0.0f;
-                c.stage++;
-                c.watered = false;
+        if (c.plot == Plot::Crop && c.stage < MatureStage) {
+            if (autoWater) c.watered = true;   // power-up auto-udare
+            if (c.watered) {
+                c.growth += dt * gmul;
+                if (c.growth >= FLOWERS[c.flower].growTime) {
+                    c.growth = 0.0f;
+                    c.stage++;
+                    c.watered = false;
+                }
             }
         }
     }
@@ -209,22 +212,34 @@ void Farm::DrawGround(const Camera2D& cam) const {
         if (c.stage > 0) {
             const FlowerInfo& fi = FLOWERS[c.flower];
             Rectangle src = (c.stage == 1) ? fi.r1 : fi.r2;
-            // copacul 2x2 e mai mare și centrat peste cele 4 pătrate
-            float extra = (c.big == 1) ? 1.8f : 1.0f;
+            // copacul 2x2 = centrat în cele 4 pătrate, dimensiune potrivită (nu enorm)
+            float extra = (c.big == 1) ? 1.3f : 1.0f;
             float cx = (c.big == 1) ? (x + 1.0f) * TS : x * TS + TS / 2.0f;
-            float by = (c.big == 1) ? (y + 2.0f) * TS : (y + 1.0f) * TS;
+            float by = (c.big == 1) ? (y + 1.85f) * TS : (y + 1.0f) * TS;   // baza spre centrul 2x2
             float w = src.width * fi.scale * extra, h = src.height * fi.scale * extra;
             DrawTexturePro(ftex[fi.tex], src,
                 Rectangle{ cx - w/2.0f, by - h, w, h }, {0,0}, 0, WHITE);
         }
-        // indicator "are nevoie de apă": picătură albastră care plutește deasupra
-        if (c.stage < MatureStage && !c.watered) {
-            float bob = sinf(GetTime() * 3.0f + x + y) * 2.0f;
+        if (c.stage < MatureStage) {
             float cxOff = (c.big == 1) ? TS : TS/2.0f;          // centrat peste 2x2 dacă e copac
-            float dx = x*TS + cxOff, dy = y*TS - 6 + bob;
-            DrawCircle((int)dx, (int)dy, 5, Color{ 70, 150, 240, 255 });
-            DrawTriangle({ dx-5, dy-1 }, { dx+5, dy-1 }, { dx, dy-9 }, Color{ 70, 150, 240, 255 });
-            DrawCircle((int)dx-1, (int)dy-1, 2, Color{ 200, 230, 255, 255 });
+            float dx = x*TS + cxOff;
+            if (!c.watered) {
+                // picătură albastră: are nevoie de apă acum
+                float bob = sinf(GetTime() * 3.0f + x + y) * 2.0f;
+                float dy = y*TS - 6 + bob;
+                DrawCircle((int)dx, (int)dy, 5, Color{ 70, 150, 240, 255 });
+                DrawTriangle({ dx-5, dy-1 }, { dx+5, dy-1 }, { dx, dy-9 }, Color{ 70, 150, 240, 255 });
+                DrawCircle((int)dx-1, (int)dy-1, 2, Color{ 200, 230, 255, 255 });
+            } else {
+                // timer: cât mai durează până trebuie udată din nou (mm:ss)
+                int rem = (int)ceilf(FLOWERS[c.flower].growTime - c.growth);
+                if (rem < 0) rem = 0;
+                const char* t = TextFormat("%d:%02d", rem / 60, rem % 60);
+                int tw = MeasureText(t, 10);
+                int bx = (int)dx - tw/2 - 3, byy = y*TS - 16;
+                DrawRectangle(bx, byy, tw + 6, 13, Color{ 20, 40, 25, 200 });
+                DrawText(t, bx + 3, byy + 1, 10, Color{ 160, 240, 160, 255 });
+            }
         }
     }
 }

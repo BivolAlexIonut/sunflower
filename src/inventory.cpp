@@ -43,6 +43,8 @@ void Inventory::Serialize(std::ostream& o) const {
     o << wood << " " << crystals << " " << (hasAxe ? 1 : 0) << " " << (hasPickaxe ? 1 : 0) << "\n";
     o << day << " " << xp << " " << level << "\n";
     o << roadCount << " " << stoneCount << "\n";
+    for (int i = 0; i < BuffCount; i++) o << buff[i] << " ";
+    o << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -54,6 +56,7 @@ void Inventory::Deserialize(std::istream& in) {
     hasAxe = (ax != 0); hasPickaxe = (pk != 0);
     in >> day >> xp >> level;
     in >> roadCount >> stoneCount;
+    for (int i = 0; i < BuffCount; i++) in >> buff[i];
 }
 
 void Inventory::TickTime(float dt) {
@@ -69,7 +72,9 @@ float Inventory::PriceFactor(int flower) const {
 }
 
 int Inventory::CurrentSell(int flower) const {
-    return (int)(FLOWERS[flower].sellPrice * PriceFactor(flower));
+    float p = FLOWERS[flower].sellPrice * PriceFactor(flower);
+    if (BuffActive(3)) p *= 1.5f;   // power-up bonus bani
+    return (int)p;
 }
 
 void Inventory::CycleSeed() {
@@ -87,6 +92,7 @@ void Inventory::EnsureValidSeed() {
 }
 
 void Inventory::AddXP(int amount) {
+    if (BuffActive(4)) amount *= 2;   // power-up bonus XP
     xp += amount;
     while (xp >= XPForNext()) {
         xp -= XPForNext();
