@@ -41,7 +41,7 @@ void Inventory::Serialize(std::ostream& o) const {
     for (int i = 0; i < (int)Flower::COUNT; i++) o << harvested[i] << " ";  o << "\n";
     for (int i = 0; i < (int)Flower::COUNT; i++) o << (unlocked[i] ? 1 : 0) << " "; o << "\n";
     o << wood << " " << crystals << " " << (hasAxe ? 1 : 0) << " " << (hasPickaxe ? 1 : 0) << "\n";
-    o << day << "\n";
+    o << day << " " << xp << " " << level << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -51,7 +51,7 @@ void Inventory::Deserialize(std::istream& in) {
     for (int i = 0; i < (int)Flower::COUNT; i++) { int u; in >> u; unlocked[i] = (u != 0); }
     int ax, pk; in >> wood >> crystals >> ax >> pk;
     hasAxe = (ax != 0); hasPickaxe = (pk != 0);
-    in >> day;
+    in >> day >> xp >> level;
 }
 
 void Inventory::TickTime(float dt) {
@@ -70,10 +70,43 @@ int Inventory::CurrentSell(int flower) const {
 }
 
 void Inventory::CycleSeed() {
+    // trece la următoarea floare pentru care AI semințe (ce poți planta acum)
     for (int i = 1; i <= (int)Flower::COUNT; i++) {
         int idx = (selectedSeed + i) % (int)Flower::COUNT;
-        if (unlocked[idx]) { selectedSeed = idx; return; }
+        if (seeds[idx] > 0) { selectedSeed = idx; return; }
     }
+}
+
+void Inventory::EnsureValidSeed() {
+    if (seeds[selectedSeed] > 0) return;
+    for (int i = 0; i < (int)Flower::COUNT; i++)
+        if (seeds[i] > 0) { selectedSeed = i; return; }
+}
+
+void Inventory::AddXP(int amount) {
+    xp += amount;
+    while (xp >= XPForNext()) {
+        xp -= XPForNext();
+        level++;
+        // la fiecare nivel deblocăm următoarea floare blocată (gratis)
+        for (int i = 0; i < (int)Flower::COUNT; i++)
+            if (!unlocked[i]) { unlocked[i] = true; break; }
+    }
+}
+
+void Inventory::DrawLevel(int plantedCount) const {
+    const int w = 196, h = 76;
+    const int x = GetScreenWidth() - w - 12, y = 12;
+    DrawRectangle(x, y, w, h, Color{ 30, 24, 16, 205 });
+    DrawRectangleLinesEx(Rectangle{ (float)x, (float)y, (float)w, (float)h }, 2, Color{ 255, 220, 90, 255 });
+    DrawText(TextFormat("Nivel %d", level), x + 12, y + 8, 22, Color{ 255, 220, 90, 255 });
+
+    float frac = (float)xp / (float)XPForNext();
+    DrawRectangle(x + 12, y + 36, w - 24, 12, Color{ 60, 50, 40, 255 });
+    DrawRectangle(x + 12, y + 36, (int)((w - 24) * frac), 12, Color{ 120, 210, 120, 255 });
+    DrawText(TextFormat("XP %d/%d", xp, XPForNext()), x + 14, y + 36, 11, WHITE);
+
+    DrawText(TextFormat("Flori plantate: %d", plantedCount), x + 12, y + 54, 15, Color{ 200, 220, 200, 255 });
 }
 
 void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {
@@ -85,20 +118,34 @@ void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {
     DrawText(TextFormat("Lemn: %d", wood), 16, 46, 18, Color{ 200, 160, 110, 255 });
     DrawText(TextFormat("Cristale: %d", crystals), 120, 46, 18, Color{ 130, 210, 230, 255 });
 
-    // Hotbar jos: sămânța selectată + recolta ei
-    const int slot = 64;
-    const int x0 = GetScreenWidth() / 2 - slot;
-    const int y0 = GetScreenHeight() - slot - 16;
+    // Bară de semințe: TOATE semințele pe care le ai (ce poți planta acum)
+    int owned[(int)Flower::COUNT], cnt = 0;
+    for (int i = 0; i < (int)Flower::COUNT; i++) if (seeds[i] > 0) owned[cnt++] = i;
 
-    DrawRectangle(x0, y0, slot, slot, Color{ 40, 30, 20, 210 });
-    DrawRectangleLinesEx(Rectangle{ (float)x0, (float)y0, (float)slot, (float)slot }, 3,
-                         Color{ 255, 220, 90, 255 });
-    const FlowerInfo& fi = FLOWERS[selectedSeed];
-    DrawTexturePro(ftex[fi.tex], fi.r2, Rectangle{ x0 + 8.0f, y0 + 6.0f, 48, 48 }, { 0, 0 }, 0.0f, WHITE);
-    DrawText(TextFormat("x%d", seeds[selectedSeed]), x0 + 6, y0 + slot - 20, 18, WHITE);
+    const int slot = 52, gap = 6;
+    int total = (cnt > 0) ? cnt * (slot + gap) - gap : slot;
+    int x0 = GetScreenWidth() / 2 - total / 2;
+    int y0 = GetScreenHeight() - slot - 14;
 
-    // numele florii selectate + câte are recoltate
-    DrawText(FLOWERS[selectedSeed].name, x0 + slot + 12, y0 + 8, 18, WHITE);
-    DrawText(TextFormat("Recoltate: %d", harvested[selectedSeed]), x0 + slot + 12, y0 + 34, 16,
-             Color{ 200, 200, 200, 255 });
+    if (cnt == 0) {
+        DrawText("Nicio samanta - cumpara din magazin (TAB) sau market",
+                 GetScreenWidth()/2 - 200, y0 + 16, 16, Color{ 230, 220, 180, 220 });
+    }
+    for (int j = 0; j < cnt; j++) {
+        int idx = owned[j];
+        int sx = x0 + j * (slot + gap);
+        bool sel = (idx == selectedSeed);
+        DrawRectangle(sx, y0, slot, slot, Color{ 40, 30, 20, 210 });
+        DrawRectangleLinesEx(Rectangle{ (float)sx, (float)y0, (float)slot, (float)slot },
+                             sel ? 3.0f : 2.0f, sel ? Color{ 255,220,90,255 } : Color{ 110,90,60,255 });
+        const FlowerInfo& fi = FLOWERS[idx];
+        DrawTexturePro(ftex[fi.tex], fi.r2, Rectangle{ sx + 8.0f, y0 + 6.0f, 36, 36 }, { 0, 0 }, 0.0f, WHITE);
+        DrawText(TextFormat("%d", seeds[idx]), sx + 4, y0 + slot - 16, 14, WHITE);
+    }
+    // numele florii selectate, deasupra barei
+    if (seeds[selectedSeed] > 0) {
+        const char* nm = FLOWERS[selectedSeed].name;
+        int tw = MeasureText(nm, 18);
+        DrawText(nm, GetScreenWidth()/2 - tw/2, y0 - 22, 18, Color{ 255, 240, 200, 255 });
+    }
 }

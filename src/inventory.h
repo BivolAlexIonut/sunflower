@@ -51,6 +51,14 @@ public:
     float PriceFactor(int flower) const;  // 0.6..1.6 în funcție de zi
     int   CurrentSell(int flower) const;  // preț de vânzare curent (cu fluctuație)
 
+    // progresie XP / nivel
+    int xp = 0;
+    int level = 1;
+    int XPForNext() const { return 80 + level * 70; }   // XP necesar pentru nivelul următor
+    void AddXP(int amount);               // adaugă XP, urcă în nivel, deblochează flori
+    void EnsureValidSeed();               // selectează o sămânță pe care o ai (dacă cea curentă e 0)
+    void DrawLevel(int plantedCount) const;
+
     void CycleSeed();   // Q: trece la următoarea floare deblocată
     void Draw(const Texture2D* ftex, const Texture2D& icons) const;   // ftex = array[FlowerTexCount]
 

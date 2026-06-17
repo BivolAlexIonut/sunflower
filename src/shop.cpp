@@ -47,6 +47,7 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             inv.money >= FLOWERS[row].seedCost) {
             inv.money -= FLOWERS[row].seedCost;
             inv.seeds[row]++;
+            inv.selectedSeed = row;        // o selectez automat → apare în bara de jos
         }
         if (IsKeyPressed(KEY_S) && inv.harvested[row] > 0) {
             inv.money += inv.harvested[row] * inv.CurrentSell(row);   // preț fluctuant

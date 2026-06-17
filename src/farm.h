@@ -33,6 +33,8 @@ public:
     void Serialize(std::ostream&) const;
     void Deserialize(std::istream&);
 
+    int CropCount() const;   // câte plante sunt în pământ (pentru XP/level)
+
     static constexpr int MatureStage = 2;
 
 private:

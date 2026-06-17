@@ -10,7 +10,6 @@ static const Station kStations[] = {
     { 1000, "VINDE",    1 },
 };
 static const int kStationCount = 2;
-static const int kSeedPrice = 8;   // mai ieftin decât în magazinul rapid
 
 void Market::Load() {
     bg        = LoadTexture("sprites/Market/Background/Background_01.png");
@@ -45,25 +44,47 @@ void Market::Enter(Player& player) {
     cam.target = { player.position.x, 270 };
 }
 
-bool Market::Update(float dt, Player& player, Inventory& inv) {
-    player.UpdateSide(dt, 40, StreetW - 40);
-    player.position.y = GroundY - 30;   // rămâne pe sol
+// construiește lista florilor deblocate (le poți cumpăra semințe)
+static int BuildUnlocked(const Inventory& inv, int* out) {
+    int n = 0;
+    for (int i = 0; i < (int)Flower::COUNT; i++) if (inv.unlocked[i]) out[n++] = i;
+    return n;
+}
 
-    // cameră orizontală, limitată la stradă
+bool Market::Update(float dt, Player& player, Inventory& inv) {
+    // ----- panoul de cumpărare semințe (mai multe tipuri) -----
+    if (buyOpen) {
+        int list[(int)Flower::COUNT];
+        int n = BuildUnlocked(inv, list);
+        if (n > 0) {
+            if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) buyRow = (buyRow + 1) % n;
+            if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) buyRow = (buyRow + n - 1) % n;
+            if (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_B)) {
+                int f = list[buyRow];
+                int price = (int)(FLOWERS[f].seedCost * 0.85f);   // la market e mai ieftin
+                if (inv.money >= price) { inv.money -= price; inv.seeds[f]++; inv.selectedSeed = f; }
+            }
+        }
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)) buyOpen = false;
+        return false;
+    }
+
+    player.UpdateSide(dt, 40, StreetW - 40);
+    player.position.y = GroundY - 30;
+
     cam.target.x += (player.position.x - cam.target.x) * 10.0f * dt;
     cam.target.y = 270;
     float minX = 480, maxX = StreetW - 480;
     if (cam.target.x < minX) cam.target.x = minX;
     if (cam.target.x > maxX) cam.target.x = maxX;
 
-    // taraba cea mai apropiată
     nearStation = -1;
     for (int i = 0; i < kStationCount; i++)
         if (fabsf(player.position.x - kStations[i].x) < 80) { nearStation = i; break; }
 
     if (nearStation >= 0 && IsKeyPressed(KEY_E)) {
-        if (kStations[nearStation].kind == 0) {                 // cumpără sămânță albă
-            if (inv.money >= kSeedPrice) { inv.money -= kSeedPrice; inv.seeds[0]++; }
+        if (kStations[nearStation].kind == 0) {                 // deschide panoul de semințe
+            buyOpen = true; buyRow = 0;
         } else {                                                 // vinde toate florile (+20% bonus)
             for (int f = 0; f < (int)Flower::COUNT; f++) {
                 if (inv.harvested[f] > 0) {
@@ -74,8 +95,8 @@ bool Market::Update(float dt, Player& player, Inventory& inv) {
         }
     }
 
-    // ieșire
-    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q) || player.position.x <= 42)
+    // ieșire (doar dacă nu e panoul deschis)
+    if (IsKeyPressed(KEY_ESCAPE) || player.position.x <= 42)
         return true;
     return false;
 }
@@ -136,9 +157,9 @@ void Market::Draw(const Player& player, const Inventory& inv) const {
 
     // HUD
     DrawText(TextFormat("MARKET   -   Banuti: %d", inv.money), 16, 16, 24, Color{ 255, 230, 150, 255 });
-    if (nearStation >= 0) {
+    if (nearStation >= 0 && !buyOpen) {
         const char* msg = (kStations[nearStation].kind == 0)
-            ? "[E] Cumpara samanta alba (8)"
+            ? "[E] Cumpara seminte"
             : "[E] Vinde toate florile (+20% bonus)";
         int w = MeasureText(msg, 22);
         DrawRectangle(GetScreenWidth()/2 - w/2 - 12, GetScreenHeight() - 80, w + 24, 36, Color{ 0,0,0,160 });
@@ -146,4 +167,28 @@ void Market::Draw(const Player& player, const Inventory& inv) const {
     }
     DrawText("Stanga/Dreapta: mergi    |    ESC / marginea stanga: iesi", 16, GetScreenHeight() - 30, 16,
              Color{ 255, 255, 255, 200 });
+
+    // panoul de cumpărare semințe (mai multe tipuri)
+    if (buyOpen) {
+        int list[(int)Flower::COUNT];
+        int n = BuildUnlocked(inv, list);
+        int pw = 420, ph = 60 + n * 30;
+        if (ph > 460) ph = 460;
+        int px = GetScreenWidth()/2 - pw/2, py = GetScreenHeight()/2 - ph/2;
+        DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Color{ 0,0,0,140 });
+        DrawRectangle(px, py, pw, ph, Color{ 38, 28, 20, 245 });
+        DrawRectangleLinesEx(Rectangle{ (float)px,(float)py,(float)pw,(float)ph }, 3, Color{ 255,220,90,255 });
+        DrawText("SEMINTE (la market: -15%)", px + 16, py + 12, 20, Color{ 255, 220, 90, 255 });
+        for (int j = 0; j < n; j++) {
+            int f = list[j];
+            int ry = py + 44 + j * 30;
+            if (j == buyRow) DrawRectangle(px + 8, ry - 4, pw - 16, 28, Color{ 255,255,255,28 });
+            int price = (int)(FLOWERS[f].seedCost * 0.85f);
+            DrawText(FLOWERS[f].name, px + 18, ry, 18, WHITE);
+            DrawText(TextFormat("%d banuti   (ai %d sem.)", price, inv.seeds[f]),
+                     px + 200, ry, 16, Color{ 200, 215, 200, 255 });
+        }
+        DrawText("Sus/Jos alege   |   E cumpara   |   ESC inchide",
+                 px + 16, py + ph - 26, 15, Color{ 180,180,180,255 });
+    }
 }

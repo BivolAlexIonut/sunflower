@@ -172,6 +172,7 @@ int main() {
 
         // HUD
         inventory.Draw(flowerTex, iconTex);
+        inventory.DrawLevel(farm.CropCount());
         DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
         if (nearMarket && !frozen) {
             const char* m = "[E] Intra in Market";

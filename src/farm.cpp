@@ -23,6 +23,12 @@ void Farm::Unload() {
     for (int i = 0; i < 4; i++) UnloadTexture(ftex[i]);
 }
 
+int Farm::CropCount() const {
+    int n = 0;
+    for (const auto& c : cells) if (c.plot == Plot::Crop) n++;
+    return n;
+}
+
 int Farm::Idx(int tx, int ty) const { return ty * TileMap::Width + tx; }
 bool Farm::InBounds(int tx, int ty) const {
     return tx >= 0 && ty >= 0 && tx < TileMap::Width && ty < TileMap::Height;
@@ -59,6 +65,8 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 c.stage = 0;
                 c.growth = 0.0f;
                 c.watered = false;                    // proaspăt plantată — are nevoie de apă
+                inv.AddXP(3);                         // XP pentru plantare
+                inv.EnsureValidSeed();
             }
             break;
         case Plot::Crop:
@@ -71,6 +79,7 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 } else {                              // floare → se culege
                     inv.harvested[c.flower]++;
                 }
+                inv.AddXP(10 + FLOWERS[c.flower].sellPrice / 20);   // XP la recoltare (mai mult la rare)
                 c.plot = Plot::Soil;
                 c.stage = 0;
                 c.growth = 0.0f;

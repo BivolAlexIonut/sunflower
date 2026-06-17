@@ -24,4 +24,6 @@ private:
 
     Camera2D cam{};
     int nearStation = -1;   // taraba din apropiere (-1 = niciuna)
+    bool buyOpen = false;   // panoul de cumpărare semințe deschis
+    int  buyRow = 0;
 };
