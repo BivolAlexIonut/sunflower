@@ -46,8 +46,14 @@ int main() {
     Scene scene = Scene::World;
     Vector2 worldReturnPos = player.position;
 
+    Texture2D chestTex = LoadTexture("sprites/Objects/FG_Treasure_Big.png");
+
     // intrarea în market: un panou lângă cărare (în pădure, sub drum)
     Vector2 marketSpot = { 7 * TS + 16.0f, 18 * TS + 0.0f };
+    // casa/depozitul de semințe, jos sub grădină
+    Vector2 chestSpot = { 24 * TS + 0.0f, 29 * TS + 0.0f };
+    bool storageOpen = false;
+    int  storageRow = 0;
 
     // dungeon: dreptunghi în pixeli, pentru ambianța întunecată
     Rectangle dunRect{
@@ -62,6 +68,7 @@ int main() {
         player.position = loadedPos;
         shop.ApplySkin(player);
     }
+    world.PopulateOwnedPlots(map);   // resurse pe parcelele noi deja deținute
     float autosaveTimer = 0.0f;
     bool landMode = false;                 // modul hartă (cumpărat teren)
     const int LandLevel = 3;               // nivelul la care se deblochează
@@ -101,7 +108,26 @@ int main() {
         }
         if (landMode && IsKeyPressed(KEY_ESCAPE)) landMode = false;
         if (landMsgTimer > 0) landMsgTimer--;
-        bool blockGameplay = frozen || landMode;
+
+        bool nearChest = (fabsf(player.position.x - (chestSpot.x + 32)) < 56 &&
+                          fabsf(player.position.y - chestSpot.y) < 56);
+
+        // depozit de semințe (cufăr): deschide cu E, navighează, ENTER alege, ESC închide
+        if (storageOpen) {
+            int owned[(int)Flower::COUNT], cnt = 0;
+            for (int i = 0; i < (int)Flower::COUNT; i++) if (inventory.seeds[i] > 0) owned[cnt++] = i;
+            if (cnt > 0) {
+                if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) storageRow = (storageRow + 1) % cnt;
+                if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) storageRow = (storageRow + cnt - 1) % cnt;
+                if (IsKeyPressed(KEY_ENTER)) { inventory.selectedSeed = owned[storageRow]; storageOpen = false; }
+            }
+            if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_E)) storageOpen = false;
+        }
+        else if (!frozen && !landMode && nearChest && IsKeyPressed(KEY_E)) {
+            storageOpen = true; storageRow = 0;
+        }
+
+        bool blockGameplay = frozen || landMode || storageOpen;
 
         Vector2 mw = GetScreenToWorld2D(GetMousePosition(), camera);
         int tx = (int)floorf(mw.x / TS), ty = (int)floorf(mw.y / TS);
@@ -125,6 +151,7 @@ int main() {
                 inventory.money >= map.PlotCost(hpc, hpr)) {
                 inventory.money -= map.PlotCost(hpc, hpr);
                 map.BuyPlot(hpc, hpr);
+                world.PopulatePlot(hpc, hpr, map.PlotTheme(hpc, hpr));   // surpriza: resurse
             }
         }
 
@@ -201,7 +228,13 @@ int main() {
         DrawRectangleRec(dunRect, Color{ 12, 14, 40, 110 });
 
         farm.DrawGround(camera);
-        if (!frozen) farm.DrawTargetHighlight(tx, ty, inRange);
+        if (!blockGameplay && inventory.buildSel == 0) {
+            int hax, hay, hsize;
+            farm.TargetArea(tx, ty, inventory, hax, hay, hsize);
+            farm.DrawTargetHighlight(hax, hay, hsize, inRange);
+        } else if (!blockGameplay) {
+            farm.DrawTargetHighlight(tx, ty, 1, inRange);   // mod construire: 1x1
+        }
 
         // Y-sorting: panoul de market + copaci/cristale + jucător
         float pFeet = player.position.y + 22;
@@ -210,10 +243,16 @@ int main() {
             DrawTexturePro(marketSign, { 0,0,(float)marketSign.width,(float)marketSign.height },
                 { marketSpot.x, marketSpot.y, w, h }, { w/2, h }, 0, WHITE);
         };
+        auto drawChest = [&](){
+            DrawTexturePro(chestTex, { 0,0,(float)chestTex.width,(float)chestTex.height },
+                { chestSpot.x, chestSpot.y, 72, 36 }, { 36, 36 }, 0, WHITE);
+        };
         world.DrawBehind(pFeet);
         if (marketSpot.y <= pFeet) drawSign();
+        if (chestSpot.y  <= pFeet) drawChest();
         player.Draw();
         if (marketSpot.y > pFeet) drawSign();
+        if (chestSpot.y  > pFeet) drawChest();
         world.DrawFront(pFeet);
 
         // ceața peste parcelele necumpărate (densă în joc, ușoară în modul hartă)
@@ -247,7 +286,8 @@ int main() {
                 else if (inventory.level < lvl)      st = "nivel insuficient";
                 else if (inventory.money < cost)     st = "bani insuficienti";
                 else                                  st = "CLICK pentru a cumpara";
-                const char* info = TextFormat("Parcela: cost %d  |  nivel necesar %d  |  %s", cost, lvl, st);
+                const char* info = TextFormat("%s  |  cost %d  |  nivel %d  |  %s",
+                                              TileMap::ThemeName(map.PlotTheme(hpc,hpr)), cost, lvl, st);
                 int w = MeasureText(info, 20);
                 DrawRectangle(screenW/2 - w/2 - 12, screenH - 52, w + 24, 34, Color{ 0,0,0,170 });
                 DrawText(info, screenW/2 - w/2, screenH - 46, 20, WHITE);
@@ -277,6 +317,35 @@ int main() {
             DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
             DrawText(m, screenW/2 - w/2, 66, 22, WHITE);
         }
+        if (nearChest && !blockGameplay) {
+            const char* m = "[E] Depozit de seminte";
+            int w = MeasureText(m, 22);
+            DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
+            DrawText(m, screenW/2 - w/2, 66, 22, WHITE);
+        }
+        // panoul depozitului de semințe
+        if (storageOpen) {
+            int owned[(int)Flower::COUNT], cnt = 0;
+            for (int i = 0; i < (int)Flower::COUNT; i++) if (inventory.seeds[i] > 0) owned[cnt++] = i;
+            int pw = 440, ph = 70 + (cnt > 0 ? cnt : 1) * 30;
+            if (ph > 460) ph = 460;
+            int px = screenW/2 - pw/2, py = screenH/2 - ph/2;
+            DrawRectangle(0, 0, screenW, screenH, Color{ 0,0,0,140 });
+            DrawRectangle(px, py, pw, ph, Color{ 38, 28, 20, 245 });
+            DrawRectangleLinesEx(Rectangle{ (float)px,(float)py,(float)pw,(float)ph }, 3, Color{ 255,220,90,255 });
+            DrawText("DEPOZIT DE SEMINTE", px + 16, py + 12, 22, Color{ 255, 220, 90, 255 });
+            if (cnt == 0) DrawText("Nicio samanta. Cumpara din magazin sau market.", px + 16, py + 50, 16,
+                                   Color{ 220,200,160,255 });
+            for (int j = 0; j < cnt; j++) {
+                int f = owned[j], ry = py + 48 + j * 30;
+                if (j == storageRow) DrawRectangle(px + 8, ry - 4, pw - 16, 28, Color{ 255,255,255,28 });
+                const FlowerInfo& fi = FLOWERS[f];
+                DrawTexturePro(flowerTex[fi.tex], fi.r2, Rectangle{ (float)(px+16), (float)ry, 24, 24 }, {0,0}, 0, WHITE);
+                DrawText(TextFormat("%s   x%d", fi.name, inventory.seeds[f]), px + 48, ry + 2, 18, WHITE);
+            }
+            DrawText("Sus/Jos alege  |  ENTER planteaza-o  |  ESC/E inchide",
+                     px + 16, py + ph - 26, 15, Color{ 180,180,180,255 });
+        }
         shop.Draw(inventory, flowerTex, iconTex);
 
         EndDrawing();
@@ -287,6 +356,7 @@ int main() {
                  (scene == Scene::Market) ? worldReturnPos : player.position);
 
     market.Unload();
+    UnloadTexture(chestTex);
     UnloadTexture(marketSign);
     for (int i = 0; i < 4; i++) UnloadTexture(flowerTex[i]);
     UnloadTexture(iconTex);

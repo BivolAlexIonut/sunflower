@@ -5,6 +5,7 @@
 
 class Inventory;
 class Player;
+class TileMap;
 
 enum class NodeType { Tree, Crystal };
 
@@ -33,6 +34,9 @@ public:
 
     void DrawBehind(float playerFeetY) const;
     void DrawFront(float playerFeetY) const;
+
+    void PopulatePlot(int pc, int pr, int theme);        // adaugă resurse pe o parcelă cumpărată
+    void PopulateOwnedPlots(const TileMap& map);         // după load: repopulează parcelele noi deținute
 
 private:
     std::vector<Node> nodes;

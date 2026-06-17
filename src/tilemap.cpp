@@ -85,6 +85,17 @@ void TileMap::BuyPlot(int pc, int pr) {
         owned[pr * PlotCols + pc] = 1;
 }
 
+int TileMap::PlotTheme(int pc, int pr) const {
+    return (int)(Hash(pc * 13 + 7, pr * 17 + 3) % 3);
+}
+const char* TileMap::ThemeName(int t) {
+    switch (t) {
+        case 0:  return "Padure (lemn)";
+        case 1:  return "Mina de cristale";
+        default: return "Crang des";
+    }
+}
+
 void TileMap::DrawFog(const Camera2D& cam, bool landMode) const {
     for (int pr = 0; pr < PlotRows; pr++)
         for (int pc = 0; pc < PlotCols; pc++) {

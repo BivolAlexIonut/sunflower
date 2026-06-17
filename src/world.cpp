@@ -107,6 +107,33 @@ void World::DrawNode(const Node& n) const {
     }
 }
 
+void World::PopulatePlot(int pc, int pr, int theme) {
+    const int TS = TileMap::TileSize;
+    int tx0 = pc * TileMap::PlotW, ty0 = pr * TileMap::PlotH;
+    for (int ty = ty0; ty < ty0 + TileMap::PlotH; ty++) {
+        for (int tx = tx0; tx < tx0 + TileMap::PlotW; tx++) {
+            unsigned int h = Hash(tx * 5 + 1, ty * 9 + 2);
+            if (theme == 1) {                          // mină de cristale
+                if (h % 5 == 0)
+                    nodes.push_back({ NodeType::Crystal,
+                        { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
+            } else {                                   // pădure / crâng (copaci → lemn)
+                bool spaced = (tx % 2 == 0 && ty % 2 == 0);
+                if (spaced && h % (theme == 2 ? 2 : 3) == 0)
+                    nodes.push_back({ NodeType::Tree,
+                        { tx*(float)TS + 16.0f, ty*(float)TS + 30.0f }, (int)(h % 4), 3, 0 });
+            }
+        }
+    }
+}
+
+void World::PopulateOwnedPlots(const TileMap& map) {
+    for (int pr = 0; pr < TileMap::PlotRows; pr++)
+        for (int pc = 0; pc < TileMap::PlotCols; pc++)
+            if (map.PlotOwned(pc, pr) && !(pc <= 4 && pr <= 3))   // doar parcele NOI deținute
+                PopulatePlot(pc, pr, map.PlotTheme(pc, pr));
+}
+
 void World::DrawBehind(float pFeetY) const {
     for (const Node& n : nodes) if (n.pos.y <= pFeetY) DrawNode(n);
 }

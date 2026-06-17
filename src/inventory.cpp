@@ -26,8 +26,8 @@ const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
     { "Toamna aurie",   240,  640, 22.f, 2100, 2, FBUD(3), FBLOOM(3), 2.0f, false },
     // Plants&supplies (sprite-uri bogate)
     { "Floarea-soarelui",500,1300, 30.f, 4500, 3, { 33,405,30,28 }, { 63,388,36,46 }, 1.5f, false },
-    { "Copac de mere",   300, 220, 26.f, 2800, 3, { 248,215,62,30 }, { 325,144,55,62 }, 1.1f, true  },
-    { "Copac de prune",  340, 260, 28.f, 3200, 3, { 248,215,62,30 }, { 325, 96,55,46 }, 1.2f, true  },
+    { "Copac de mere",   300, 220, 26.f, 2800, 3, { 248,146,56,60 }, { 325,144,55,62 }, 1.0f, true  },
+    { "Copac de prune",  340, 260, 28.f, 3200, 3, { 248, 96,58,46 }, { 325, 96,55,46 }, 1.1f, true  },
 };
 #undef FBUD
 #undef FBLOOM
@@ -59,6 +59,7 @@ void Inventory::Deserialize(std::istream& in) {
 void Inventory::TickTime(float dt) {
     dayTimer += dt;
     if (dayTimer >= DaySeconds) { dayTimer -= DaySeconds; day++; }
+    if (levelUpTimer > 0) levelUpTimer--;
 }
 
 float Inventory::PriceFactor(int flower) const {
@@ -90,9 +91,21 @@ void Inventory::AddXP(int amount) {
     while (xp >= XPForNext()) {
         xp -= XPForNext();
         level++;
-        // la fiecare nivel deblocăm următoarea floare blocată (gratis)
-        for (int i = 0; i < (int)Flower::COUNT; i++)
-            if (!unlocked[i]) { unlocked[i] = true; break; }
+
+        int reward = 20 + level * 15;          // bani la fiecare nivel
+        money += reward;
+        std::string msg = TextFormat("Nivel %d!  +%d bani", level, reward);
+
+        for (int i = 0; i < (int)Flower::COUNT; i++)   // deblochează următoarea floare gratis
+            if (!unlocked[i]) { unlocked[i] = true; msg += "  +floare noua"; break; }
+
+        if (level == 3) msg += "  (apasa L: cumpara teren!)";
+        if (level == 5 && !hasAxe)      { hasAxe = true;      msg += "  +Topor"; }
+        if (level == 7 && !hasPickaxe)  { hasPickaxe = true;  msg += "  +Tarnacop"; }
+        if (level % 4 == 0)             { roadCount += 3;     msg += "  +3 drum"; }
+
+        levelUpMsg = msg;
+        levelUpTimer = 220;
     }
 }
 
@@ -109,6 +122,15 @@ void Inventory::DrawLevel(int plantedCount) const {
     DrawText(TextFormat("XP %d/%d", xp, XPForNext()), x + 14, y + 36, 11, WHITE);
 
     DrawText(TextFormat("Flori plantate: %d", plantedCount), x + 12, y + 54, 15, Color{ 200, 220, 200, 255 });
+
+    // popup de level-up (centru-sus)
+    if (levelUpTimer > 0 && !levelUpMsg.empty()) {
+        int tw = MeasureText(levelUpMsg.c_str(), 22);
+        int px = GetScreenWidth()/2 - tw/2, py = 120;
+        DrawRectangle(px - 16, py - 8, tw + 32, 40, Color{ 30, 60, 30, 220 });
+        DrawRectangleLinesEx(Rectangle{ (float)(px-16),(float)(py-8),(float)(tw+32),40 }, 2, Color{ 140, 230, 140, 255 });
+        DrawText(levelUpMsg.c_str(), px, py, 22, Color{ 200, 255, 200, 255 });
+    }
 }
 
 void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {

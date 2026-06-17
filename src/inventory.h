@@ -2,6 +2,7 @@
 #pragma once
 #include "raylib.h"
 #include <iosfwd>
+#include <string>
 
 // Plante de plantat (flori, copaci etc.). Indexate doar prin poziție; COUNT = nr. total.
 enum class Flower { COUNT = 15 };
@@ -61,6 +62,8 @@ public:
     // progresie XP / nivel
     int xp = 0;
     int level = 1;
+    int levelUpTimer = 0;          // runtime: cât mai afișăm popup-ul de level-up
+    std::string levelUpMsg;        // runtime
     int XPForNext() const { return 80 + level * 70; }   // XP necesar pentru nivelul următor
     void AddXP(int amount);               // adaugă XP, urcă în nivel, deblochează flori
     void EnsureValidSeed();               // selectează o sămânță pe care o ai (dacă cea curentă e 0)

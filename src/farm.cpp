@@ -49,17 +49,49 @@ void Farm::Update(float dt) {
     }
 }
 
+bool Farm::TreeAnchor(int tx, int ty, int& ax, int& ay) const {
+    if (!InBounds(tx, ty)) return false;
+    const Cell& c = cells[Idx(tx, ty)];
+    if (c.big == 1) { ax = tx; ay = ty; return true; }
+    if (c.big == 2) {
+        const int dx[3] = { -1, 0, -1 }, dy[3] = { 0, -1, -1 };
+        for (int k = 0; k < 3; k++) {
+            int bx = tx + dx[k], by = ty + dy[k];
+            if (InBounds(bx, by) && cells[Idx(bx, by)].big == 1) { ax = bx; ay = by; return true; }
+        }
+    }
+    return false;
+}
+
+bool Farm::Tree2x2Soil(int tx, int ty, int& ax, int& ay) const {
+    const int cxs[4] = { tx, tx-1, tx, tx-1 }, cys[4] = { ty, ty, ty-1, ty-1 };
+    for (int k = 0; k < 4; k++) {
+        int bx = cxs[k], by = cys[k];
+        bool ok = true;
+        for (int oy = 0; oy < 2 && ok; oy++)
+            for (int ox = 0; ox < 2 && ok; ox++)
+                if (!InBounds(bx+ox, by+oy) || cells[Idx(bx+ox, by+oy)].plot != Plot::Soil)
+                    ok = false;
+        if (ok) { ax = bx; ay = by; return true; }
+    }
+    return false;
+}
+
+void Farm::TargetArea(int tx, int ty, const Inventory& inv, int& ax, int& ay, int& size) const {
+    int bx, by;
+    if (TreeAnchor(tx, ty, bx, by)) { ax = bx; ay = by; size = 2; return; }   // copac existent
+    if (FLOWERS[inv.selectedSeed].isTree && Tree2x2Soil(tx, ty, bx, by)) {
+        ax = bx; ay = by; size = 2; return;                                    // pregătit de plantat copac
+    }
+    ax = tx; ay = ty; size = 1;
+}
+
 void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
     if (!InBounds(tx, ty)) return;
 
     // dacă am dat click pe o celulă acoperită de un copac 2x2, redirecționăm spre ancoră
-    if (cells[Idx(tx, ty)].big == 2) {
-        const int dx[3] = { -1, 0, -1 }, dy[3] = { 0, -1, -1 };
-        for (int k = 0; k < 3; k++) {
-            int ax = tx + dx[k], ay = ty + dy[k];
-            if (InBounds(ax, ay) && cells[Idx(ax, ay)].big == 1) { tx = ax; ty = ay; break; }
-        }
-    }
+    int rax, ray;
+    if (TreeAnchor(tx, ty, rax, ray)) { tx = rax; ty = ray; }
 
     Cell& c = cells[Idx(tx, ty)];
 
@@ -73,19 +105,9 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
             if (inv.seeds[f] <= 0) break;
 
             if (FLOWERS[f].isTree) {
-                // copac → are nevoie de 2x2 săpat. Căutăm un bloc 2x2 de pământ care conține (tx,ty).
-                int ax = -1, ay = -1;
-                const int cxs[4] = { tx, tx-1, tx, tx-1 }, cys[4] = { ty, ty, ty-1, ty-1 };
-                for (int k = 0; k < 4 && ax < 0; k++) {
-                    int bx = cxs[k], by = cys[k];
-                    bool ok = true;
-                    for (int oy = 0; oy < 2 && ok; oy++)
-                        for (int ox = 0; ox < 2 && ok; ox++)
-                            if (!InBounds(bx+ox, by+oy) || cells[Idx(bx+ox, by+oy)].plot != Plot::Soil)
-                                ok = false;
-                    if (ok) { ax = bx; ay = by; }
-                }
-                if (ax < 0) break;   // nu sunt 4 pătrățele săpate → nu plantăm copacul
+                // copac → are nevoie de 2x2 săpat
+                int ax, ay;
+                if (!Tree2x2Soil(tx, ty, ax, ay)) break;   // nu sunt 4 pătrățele săpate
 
                 inv.seeds[f]--;
                 for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++) {
@@ -129,6 +151,9 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
             } else if (!c.watered) {                  // udă → pornește creșterea spre stadiul următor
                 player.StartAction(Action::Watercan);
                 c.watered = true;
+                if (c.big == 1)                       // copac 2x2 → udă toate cele 4 pătrate
+                    for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++)
+                        cells[Idx(tx+ox, ty+oy)].watered = true;
             }
             break;
     }
@@ -195,7 +220,8 @@ void Farm::DrawGround(const Camera2D& cam) const {
         // indicator "are nevoie de apă": picătură albastră care plutește deasupra
         if (c.stage < MatureStage && !c.watered) {
             float bob = sinf(GetTime() * 3.0f + x + y) * 2.0f;
-            float dx = x*TS + TS/2.0f, dy = y*TS - 6 + bob;
+            float cxOff = (c.big == 1) ? TS : TS/2.0f;          // centrat peste 2x2 dacă e copac
+            float dx = x*TS + cxOff, dy = y*TS - 6 + bob;
             DrawCircle((int)dx, (int)dy, 5, Color{ 70, 150, 240, 255 });
             DrawTriangle({ dx-5, dy-1 }, { dx+5, dy-1 }, { dx, dy-9 }, Color{ 70, 150, 240, 255 });
             DrawCircle((int)dx-1, (int)dy-1, 2, Color{ 200, 230, 255, 255 });
@@ -203,11 +229,11 @@ void Farm::DrawGround(const Camera2D& cam) const {
     }
 }
 
-void Farm::DrawTargetHighlight(int tx, int ty, bool inRange) const {
-    if (!InBounds(tx, ty)) return;
+void Farm::DrawTargetHighlight(int ax, int ay, int size, bool inRange) const {
+    if (!InBounds(ax, ay)) return;
     const int TS = TileMap::TileSize;
     Color c = inRange ? Color{ 255, 255, 255, 200 } : Color{ 230, 70, 70, 160 };
-    Rectangle r{ (float)(tx*TS), (float)(ty*TS), (float)TS, (float)TS };
+    Rectangle r{ (float)(ax*TS), (float)(ay*TS), (float)(size*TS), (float)(size*TS) };
     if (inRange) DrawRectangleRec(r, Color{ 255, 255, 255, 35 });
     DrawRectangleLinesEx(r, 2.0f, c);
 }

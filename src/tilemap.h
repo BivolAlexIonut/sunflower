@@ -27,6 +27,8 @@ public:
     int  PlotLevel(int pc, int pr) const;            // nivel necesar
     bool PlotAdjacentOwned(int pc, int pr) const;    // lipită de o parcelă deținută
     void BuyPlot(int pc, int pr);
+    int  PlotTheme(int pc, int pr) const;            // 0 pădure, 1 mină cristale, 2 crâng des
+    static const char* ThemeName(int theme);
     void DrawFog(const Camera2D& cam, bool landMode) const;
 
     void Load();
