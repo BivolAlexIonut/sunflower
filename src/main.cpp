@@ -87,6 +87,10 @@ int main() {
     const int LandLevel = 3;               // nivelul la care se deblochează
     int landMsgTimer = 0;                  // afișează scurt "deblocat la nivel X"
 
+    int digTx = -1, digTy = -1;            // săpat: ții click apăsat câteva secunde
+    float digProgress = 0.0f;
+    const float DigTime = 3.0f;            // secunde de săpat per tile
+
     Camera2D camera{};
     camera.target = player.position;
     camera.offset = { screenW / 2.0f, screenH / 2.0f };
@@ -202,14 +206,23 @@ int main() {
             inventory.TickTime(dt);
             inventory.UpdateBuffs(dt);
 
+            // B: intră / ciclează modul construire (dacă ai materiale cumpărate)
+            if (IsKeyPressed(KEY_B)) {
+                if (inventory.buildSel == 0) {
+                    if (inventory.roadCount > 0) inventory.buildSel = 1;
+                    else if (inventory.stoneCount > 0) inventory.buildSel = 2;
+                } else if (inventory.buildSel == 1 && inventory.stoneCount > 0) inventory.buildSel = 2;
+                else inventory.buildSel = 0;
+            }
+
             if (nearMarket && IsKeyPressed(KEY_E)) {           // intră în market
                 worldReturnPos = player.position;
                 market.Enter(player);
                 scene = Scene::Market;
+                digTx = -1; digProgress = 0;
             }
             else if (inventory.buildSel != 0) {                // MOD CONSTRUIRE
-                if (IsKeyPressed(KEY_B) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
-                    inventory.buildSel = 0;                    // ieși din construire
+                if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) inventory.buildSel = 0;
                 else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange) {
                     if (inventory.buildSel == 1 && inventory.roadCount > 0) {
                         map.Place(tx, ty, Terrain::Dirt);  inventory.roadCount--;
@@ -217,13 +230,34 @@ int main() {
                         map.Place(tx, ty, Terrain::Wall);  inventory.stoneCount--;
                     }
                 }
+                digTx = -1; digProgress = 0;
             }
-            else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange && !player.IsBusy()) {
-                player.FaceTo(tileCenter);
-                int r = world.Interact(tx, ty, inventory, player);
-                if (r == 0 && map.CanFarm(tx, ty))
-                    farm.Interact(tx, ty, inventory, player);
+            else if (inRange) {
+                bool nodeHere = world.HasNode(tx, ty);
+                bool grassDig = map.CanFarm(tx, ty) && farm.Diggable(tx, ty);
+                if (nodeHere) {                                // copac/cristal: click = taie/minează
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !player.IsBusy()) {
+                        player.FaceTo(tileCenter);
+                        world.Interact(tx, ty, inventory, player);
+                    }
+                    digTx = -1; digProgress = 0;
+                }
+                else if (grassDig && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                    player.FaceTo(tileCenter);                 // ții apăsat ca să sapi
+                    if (tx == digTx && ty == digTy) digProgress += dt;
+                    else { digTx = tx; digTy = ty; digProgress = 0; }
+                    if (!player.IsBusy()) player.StartAction(Action::Hoe);
+                    if (digProgress >= DigTime) { farm.Till(tx, ty); digTx = -1; digProgress = 0; }
+                }
+                else {                                         // pământ/cultură: click = plantează/udă/recoltează
+                    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !player.IsBusy()) {
+                        player.FaceTo(tileCenter);
+                        farm.Interact(tx, ty, inventory, player);
+                    }
+                    digTx = -1; digProgress = 0;
+                }
             }
+            else { digTx = -1; digProgress = 0; }
         }
 
         // camera: în modul hartă privim toată harta (zoom out), altfel urmărim jucătorul
@@ -261,6 +295,13 @@ int main() {
             farm.DrawTargetHighlight(hax, hay, hsize, inRange);
         } else if (!blockGameplay) {
             farm.DrawTargetHighlight(tx, ty, 1, inRange);   // mod construire: 1x1
+        }
+        // bara de progres la săpat
+        if (digTx >= 0 && digProgress > 0) {
+            float frac = digProgress / DigTime;
+            int bx = digTx*TS + 2, byy = digTy*TS - 8;
+            DrawRectangle(bx, byy, TS - 4, 6, Color{ 0,0,0,180 });
+            DrawRectangle(bx, byy, (int)((TS - 4) * frac), 6, Color{ 220, 180, 90, 255 });
         }
 
         // Y-sorting: panoul de market + copaci/cristale + jucător
@@ -370,7 +411,7 @@ int main() {
         // buff-uri active (sub resurse, stânga)
         {
             static const char* bn[5] = { "Viteza", "Auto-udare", "Crestere rapida", "Bonus bani", "Bonus XP" };
-            int by = 72;
+            int by = 90;
             for (int i = 0; i < Inventory::BuffCount; i++) if (inventory.buff[i] > 0) {
                 int s = (int)inventory.buff[i];
                 DrawText(TextFormat("%s  %d:%02d", bn[i], s/60, s%60), 16, by, 16,

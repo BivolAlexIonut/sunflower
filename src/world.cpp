@@ -36,14 +36,11 @@ void World::Generate(const TileMap& map) {
                         { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
             }
             else if ((t == Terrain::Grass || t == Terrain::GrassDark) && !path) {
-                // copaci rari și DISTANȚAȚI: doar pe tile-uri pare (nu se ating) în pădure
-                bool spaced = (tx % 2 == 0 && ty % 2 == 0);
+                // copaci așezați UNIFORM (grilă din 3 în 3) în pădure
                 bool forest = (tx <= 15);
-                if (spaced && forest && h % 2 == 0) {
-                    float jx = (float)((h>>4)%8) - 4;
+                if (forest && tx % 3 == 1 && ty % 3 == 1)
                     nodes.push_back({ NodeType::Tree,
-                        { tx*(float)TS + 16 + jx, ty*(float)TS + 30 }, (int)(h%4), 3, 0 });
-                }
+                        { tx*(float)TS + 16.0f, ty*(float)TS + 30.0f }, (int)(h % 4), 3, 0 });
             }
         }
     }
@@ -68,6 +65,15 @@ bool World::Blocks(Vector2 feet) const {
             Rectangle r{ n.pos.x - 12, n.pos.y - 14, 24, 14 };
             if (CheckCollisionPointRec(feet, r)) return true;
         }
+    }
+    return false;
+}
+
+bool World::HasNode(int tx, int ty) const {
+    const int TS = TileMap::TileSize;
+    for (const Node& n : nodes) {
+        if (n.respawn > 0) continue;
+        if ((int)(n.pos.x / TS) == tx && (int)((n.pos.y - 2) / TS) == ty) return true;
     }
     return false;
 }
@@ -113,13 +119,13 @@ void World::PopulatePlot(int pc, int pr, int theme) {
     for (int ty = ty0; ty < ty0 + TileMap::PlotH; ty++) {
         for (int tx = tx0; tx < tx0 + TileMap::PlotW; tx++) {
             unsigned int h = Hash(tx * 5 + 1, ty * 9 + 2);
-            if (theme == 1) {                          // mină de cristale
-                if (h % 5 == 0)
+            if (theme == 1) {                          // mină de cristale (grilă)
+                if (tx % 2 == 0 && ty % 2 == 0)
                     nodes.push_back({ NodeType::Crystal,
                         { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
-            } else {                                   // pădure / crâng (copaci → lemn)
-                bool spaced = (tx % 2 == 0 && ty % 2 == 0);
-                if (spaced && h % (theme == 2 ? 2 : 3) == 0)
+            } else {                                   // pădure / crâng (copaci uniformi)
+                int step = (theme == 2) ? 2 : 3;       // crâng des = mai dens
+                if (tx % step == 1 && ty % step == 1)
                     nodes.push_back({ NodeType::Tree,
                         { tx*(float)TS + 16.0f, ty*(float)TS + 30.0f }, (int)(h % 4), 3, 0 });
             }

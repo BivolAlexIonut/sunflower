@@ -25,6 +25,7 @@ public:
 
     void Update(float dt);
     bool Blocks(Vector2 feet) const;
+    bool HasNode(int tx, int ty) const;   // există un copac/cristal activ în tile
 
     // Încearcă să lucreze nodul din tile-ul (tx,ty). Returnează:
     //  0 = niciun nod acolo (lasă farmatul să încerce)

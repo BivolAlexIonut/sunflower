@@ -29,6 +29,14 @@ int Farm::CropCount() const {
     return n;
 }
 
+bool Farm::Diggable(int tx, int ty) const {
+    return InBounds(tx, ty) && cells[Idx(tx, ty)].plot == Plot::Grass;
+}
+void Farm::Till(int tx, int ty) {
+    if (InBounds(tx, ty) && cells[Idx(tx, ty)].plot == Plot::Grass)
+        cells[Idx(tx, ty)].plot = Plot::Soil;
+}
+
 int Farm::Idx(int tx, int ty) const { return ty * TileMap::Width + tx; }
 bool Farm::InBounds(int tx, int ty) const {
     return tx >= 0 && ty >= 0 && tx < TileMap::Width && ty < TileMap::Height;
