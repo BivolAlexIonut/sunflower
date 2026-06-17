@@ -25,7 +25,7 @@ void Farm::Unload() {
 
 int Farm::CropCount() const {
     int n = 0;
-    for (const auto& c : cells) if (c.plot == Plot::Crop) n++;
+    for (const auto& c : cells) if (c.plot == Plot::Crop && c.big != 2) n++;  // copacul = 1 plantă
     return n;
 }
 
@@ -36,6 +36,7 @@ bool Farm::InBounds(int tx, int ty) const {
 
 void Farm::Update(float dt) {
     for (auto& c : cells) {
+        if (c.big == 2) continue;   // celulele acoperite de un copac 2x2 nu cresc singure
         // crește DOAR dacă e udată; după ce avansează un stadiu, are nevoie de udare din nou
         if (c.plot == Plot::Crop && c.stage < MatureStage && c.watered) {
             c.growth += dt;
@@ -50,6 +51,16 @@ void Farm::Update(float dt) {
 
 void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
     if (!InBounds(tx, ty)) return;
+
+    // dacă am dat click pe o celulă acoperită de un copac 2x2, redirecționăm spre ancoră
+    if (cells[Idx(tx, ty)].big == 2) {
+        const int dx[3] = { -1, 0, -1 }, dy[3] = { 0, -1, -1 };
+        for (int k = 0; k < 3; k++) {
+            int ax = tx + dx[k], ay = ty + dy[k];
+            if (InBounds(ax, ay) && cells[Idx(ax, ay)].big == 1) { tx = ax; ty = ay; break; }
+        }
+    }
+
     Cell& c = cells[Idx(tx, ty)];
 
     switch (c.plot) {
@@ -57,33 +68,64 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
             player.StartAction(Action::Hoe);     // sapă
             c.plot = Plot::Soil;
             break;
-        case Plot::Soil:
-            if (inv.seeds[inv.selectedSeed] > 0) {   // plantează sămânța selectată
-                inv.seeds[inv.selectedSeed]--;
-                c.plot = Plot::Crop;
-                c.flower = inv.selectedSeed;
-                c.stage = 0;
-                c.growth = 0.0f;
-                c.watered = false;                    // proaspăt plantată — are nevoie de apă
-                inv.AddXP(3);                         // XP pentru plantare
+        case Plot::Soil: {
+            int f = inv.selectedSeed;
+            if (inv.seeds[f] <= 0) break;
+
+            if (FLOWERS[f].isTree) {
+                // copac → are nevoie de 2x2 săpat. Căutăm un bloc 2x2 de pământ care conține (tx,ty).
+                int ax = -1, ay = -1;
+                const int cxs[4] = { tx, tx-1, tx, tx-1 }, cys[4] = { ty, ty, ty-1, ty-1 };
+                for (int k = 0; k < 4 && ax < 0; k++) {
+                    int bx = cxs[k], by = cys[k];
+                    bool ok = true;
+                    for (int oy = 0; oy < 2 && ok; oy++)
+                        for (int ox = 0; ox < 2 && ok; ox++)
+                            if (!InBounds(bx+ox, by+oy) || cells[Idx(bx+ox, by+oy)].plot != Plot::Soil)
+                                ok = false;
+                    if (ok) { ax = bx; ay = by; }
+                }
+                if (ax < 0) break;   // nu sunt 4 pătrățele săpate → nu plantăm copacul
+
+                inv.seeds[f]--;
+                for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++) {
+                    Cell& s = cells[Idx(ax+ox, ay+oy)];
+                    s.plot = Plot::Crop; s.flower = f; s.stage = 0; s.growth = 0; s.watered = false;
+                    s.big = (ox == 0 && oy == 0) ? 1 : 2;   // colțul stânga-sus = ancoră
+                }
+                inv.AddXP(5);
+                inv.EnsureValidSeed();
+            } else {
+                // floare normală → un singur pătrat
+                inv.seeds[f]--;
+                c.plot = Plot::Crop; c.flower = f; c.stage = 0; c.growth = 0; c.watered = false; c.big = 0;
+                inv.AddXP(3);
                 inv.EnsureValidSeed();
             }
             break;
+        }
         case Plot::Crop:
             if (c.stage >= MatureStage) {            // matură
-                if (FLOWERS[c.flower].isTree) {       // copac → se taie cu toporul (dă lemn + fruct)
+                bool tree = FLOWERS[c.flower].isTree;
+                if (tree) {
                     if (!inv.hasAxe) break;           // fără topor nu poți tăia
                     player.StartAction(Action::Axe);
                     inv.harvested[c.flower]++;
-                    inv.wood += 2;
-                } else {                              // floare → se culege
+                    inv.wood += 4;
+                } else {
                     inv.harvested[c.flower]++;
                 }
-                inv.AddXP(10 + FLOWERS[c.flower].sellPrice / 20);   // XP la recoltare (mai mult la rare)
-                c.plot = Plot::Soil;
-                c.stage = 0;
-                c.growth = 0.0f;
-                c.watered = false;
+                inv.AddXP(10 + FLOWERS[c.flower].sellPrice / 20);
+
+                if (tree && c.big == 1) {            // copac 2x2 → eliberează toate cele 4 pătrate
+                    int ax = tx, ay = ty;
+                    for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++) {
+                        Cell& s = cells[Idx(ax+ox, ay+oy)];
+                        s = Cell{}; s.plot = Plot::Soil;
+                    }
+                } else {
+                    c.plot = Plot::Soil; c.stage = 0; c.growth = 0; c.watered = false; c.big = 0;
+                }
             } else if (!c.watered) {                  // udă → pornește creșterea spre stadiul următor
                 player.StartAction(Action::Watercan);
                 c.watered = true;
@@ -100,7 +142,7 @@ void Farm::Serialize(std::ostream& o) const {
         const Cell& c = cells[i];
         if (c.plot == Plot::Grass) continue;
         o << i << " " << (int)c.plot << " " << c.flower << " " << c.stage << " "
-          << c.growth << " " << (c.watered ? 1 : 0) << "\n";
+          << c.growth << " " << (c.watered ? 1 : 0) << " " << c.big << "\n";
     }
 }
 
@@ -108,10 +150,10 @@ void Farm::Deserialize(std::istream& in) {
     for (auto& c : cells) c = Cell{};
     int n; in >> n;
     for (int k = 0; k < n; k++) {
-        int i, p, fl, st, wt; float g;
-        in >> i >> p >> fl >> st >> g >> wt;
+        int i, p, fl, st, wt, bg; float g;
+        in >> i >> p >> fl >> st >> g >> wt >> bg;
         if (i >= 0 && i < (int)cells.size())
-            cells[i] = Cell{ (Plot)p, fl, st, g, wt != 0 };
+            cells[i] = Cell{ (Plot)p, fl, st, g, wt != 0, bg };
     }
 }
 
@@ -138,13 +180,17 @@ void Farm::DrawGround(const Camera2D& cam) const {
     // plantele (bottom-anchored) — textură, rect și scală după tipul plantei
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
-        if (c.plot != Plot::Crop) continue;
+        if (c.plot != Plot::Crop || c.big == 2) continue;   // sclavii 2x2 nu se desenează singuri
         if (c.stage > 0) {
             const FlowerInfo& fi = FLOWERS[c.flower];
             Rectangle src = (c.stage == 1) ? fi.r1 : fi.r2;
-            float w = src.width * fi.scale, h = src.height * fi.scale;
+            // copacul 2x2 e mai mare și centrat peste cele 4 pătrate
+            float extra = (c.big == 1) ? 1.8f : 1.0f;
+            float cx = (c.big == 1) ? (x + 1.0f) * TS : x * TS + TS / 2.0f;
+            float by = (c.big == 1) ? (y + 2.0f) * TS : (y + 1.0f) * TS;
+            float w = src.width * fi.scale * extra, h = src.height * fi.scale * extra;
             DrawTexturePro(ftex[fi.tex], src,
-                Rectangle{ x*TS + TS/2.0f - w/2.0f, (y+1.0f)*TS - h, w, h }, {0,0}, 0, WHITE);
+                Rectangle{ cx - w/2.0f, by - h, w, h }, {0,0}, 0, WHITE);
         }
         // indicator "are nevoie de apă": picătură albastră care plutește deasupra
         if (c.stage < MatureStage && !c.watered) {

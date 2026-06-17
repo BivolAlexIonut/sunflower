@@ -2,13 +2,14 @@
 #include "inventory.h"
 #include "shop.h"
 #include "farm.h"
+#include "tilemap.h"
 #include <fstream>
 #include <string>
 
-static const int kSaveVersion = 8;
+static const int kSaveVersion = 9;
 
 void SaveIO::Save(const char* path, const Inventory& inv, const Shop& shop,
-                  const Farm& farm, Vector2 playerPos) {
+                  const Farm& farm, const TileMap& map, Vector2 playerPos) {
     std::ofstream f(path);
     if (!f) return;
     f << "SUNFLOWER " << kSaveVersion << "\n";
@@ -16,10 +17,11 @@ void SaveIO::Save(const char* path, const Inventory& inv, const Shop& shop,
     inv.Serialize(f);
     shop.Serialize(f);
     farm.Serialize(f);
+    map.Serialize(f);
 }
 
 bool SaveIO::Load(const char* path, Inventory& inv, Shop& shop,
-                  Farm& farm, Vector2& playerPos) {
+                  Farm& farm, TileMap& map, Vector2& playerPos) {
     std::ifstream f(path);
     if (!f) return false;
 
@@ -31,5 +33,6 @@ bool SaveIO::Load(const char* path, Inventory& inv, Shop& shop,
     inv.Deserialize(f);
     shop.Deserialize(f);
     farm.Deserialize(f);
+    map.Deserialize(f);
     return f.good() || f.eof();
 }

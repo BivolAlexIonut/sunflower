@@ -40,6 +40,13 @@ public:
     bool hasAxe = false;
     bool hasPickaxe = false;
 
+    // materiale de construcție (drum / piatră) + ce construiești acum (runtime)
+    int roadCount = 0;
+    int stoneCount = 0;
+    int buildSel = 0;        // 0 = nimic, 1 = drum, 2 = piatră (nu se salvează)
+    static constexpr int RoadCost = 12;
+    static constexpr int StoneCost = 25;
+
     // piață: prețurile fluctuează în fiecare "zi"
     int day = 0;
     float dayTimer = 0.0f;

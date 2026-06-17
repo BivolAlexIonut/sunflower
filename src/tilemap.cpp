@@ -1,5 +1,7 @@
 #include "tilemap.h"
 #include <cmath>
+#include <ostream>
+#include <istream>
 
 static unsigned int Hash(int x, int y) {
     unsigned int h = (unsigned int)(x * 73856093) ^ (unsigned int)(y * 19349663);
@@ -44,6 +46,29 @@ bool TileMap::IsSolid(int tx, int ty) const { return At(tx, ty) == Terrain::Wall
 bool TileMap::CanFarm(int tx, int ty) const {
     Terrain t = At(tx, ty);
     return t == Terrain::Grass || t == Terrain::GrassDark;
+}
+
+void TileMap::Place(int tx, int ty, Terrain t) {
+    if (tx < 0 || ty < 0 || tx >= Width || ty >= Height) return;
+    int i = Idx(tx, ty);
+    tiles[i] = t;
+    bool found = false;
+    for (int p : placed) if (p == i) { found = true; break; }
+    if (!found) placed.push_back(i);
+}
+
+void TileMap::Serialize(std::ostream& o) const {
+    o << placed.size() << "\n";
+    for (int i : placed) o << i << " " << (int)tiles[i] << "\n";
+}
+
+void TileMap::Deserialize(std::istream& in) {
+    placed.clear();
+    int n; in >> n;
+    for (int k = 0; k < n; k++) {
+        int i, t; in >> i >> t;
+        if (i >= 0 && i < (int)tiles.size()) { tiles[i] = (Terrain)t; placed.push_back(i); }
+    }
 }
 
 void TileMap::Build() {

@@ -2,6 +2,7 @@
 #pragma once
 #include "raylib.h"
 #include <vector>
+#include <iosfwd>
 
 enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall };
 
@@ -24,11 +25,16 @@ public:
     bool IsSolid(int tx, int ty) const;   // Wall = blochează mișcarea
     bool CanFarm(int tx, int ty) const;   // se poate săpa (iarbă)
 
+    void Place(int tx, int ty, Terrain t);  // construire jucător (drum/piatră), se salvează
+    void Serialize(std::ostream&) const;    // doar tile-urile construite de jucător
+    void Deserialize(std::istream&);
+
     float WorldWidth()  const { return Width  * (float)TileSize; }
     float WorldHeight() const { return Height * (float)TileSize; }
 
 private:
     std::vector<Terrain> tiles;
+    std::vector<int> placed;   // indicii tile-urilor construite de jucător (pentru salvare)
     Texture2D grounds{};    // FG_Grounds (iarbă/pământ, 16px)
     Texture2D fortress{};   // FG_Fortress_A5 (piatră/zid, 32px)
 

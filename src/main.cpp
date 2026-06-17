@@ -58,7 +58,7 @@ int main() {
 
     // încarcă progresul salvat
     Vector2 loadedPos = player.position;
-    if (SaveIO::Load(SAVE_PATH, inventory, shop, farm, loadedPos)) {
+    if (SaveIO::Load(SAVE_PATH, inventory, shop, farm, map, loadedPos)) {
         player.position = loadedPos;
         shop.ApplySkin(player);
     }
@@ -124,6 +124,17 @@ int main() {
                 market.Enter(player);
                 scene = Scene::Market;
             }
+            else if (inventory.buildSel != 0) {                // MOD CONSTRUIRE
+                if (IsKeyPressed(KEY_B) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+                    inventory.buildSel = 0;                    // ieși din construire
+                else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange) {
+                    if (inventory.buildSel == 1 && inventory.roadCount > 0) {
+                        map.Place(tx, ty, Terrain::Dirt);  inventory.roadCount--;
+                    } else if (inventory.buildSel == 2 && inventory.stoneCount > 0) {
+                        map.Place(tx, ty, Terrain::Wall);  inventory.stoneCount--;
+                    }
+                }
+            }
             else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange && !player.IsBusy()) {
                 player.FaceTo(tileCenter);
                 int r = world.Interact(tx, ty, inventory, player);
@@ -143,7 +154,7 @@ int main() {
         autosaveTimer += dt;
         if (autosaveTimer >= 20.0f) {
             autosaveTimer = 0.0f;
-            SaveIO::Save(SAVE_PATH, inventory, shop, farm, player.position);
+            SaveIO::Save(SAVE_PATH, inventory, shop, farm, map, player.position);
         }
 
         BeginDrawing();
@@ -174,6 +185,14 @@ int main() {
         inventory.Draw(flowerTex, iconTex);
         inventory.DrawLevel(farm.CropCount());
         DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
+        if (inventory.buildSel != 0) {
+            const char* bm = (inventory.buildSel == 1)
+                ? TextFormat("CONSTRUIESTI: Drum (%d) - click pune, B/dreapta iesi", inventory.roadCount)
+                : TextFormat("CONSTRUIESTI: Piatra (%d) - click pune, B/dreapta iesi", inventory.stoneCount);
+            int w = MeasureText(bm, 20);
+            DrawRectangle(screenW/2 - w/2 - 12, 96, w + 24, 32, Color{ 0,0,0,170 });
+            DrawText(bm, screenW/2 - w/2, 102, 20, Color{ 255, 230, 150, 255 });
+        }
         if (nearMarket && !frozen) {
             const char* m = "[E] Intra in Market";
             int w = MeasureText(m, 22);
@@ -186,7 +205,7 @@ int main() {
     }
 
     // la ieșire salvează poziția din LUME (nu cea din scena de market)
-    SaveIO::Save(SAVE_PATH, inventory, shop, farm,
+    SaveIO::Save(SAVE_PATH, inventory, shop, farm, map,
                  (scene == Scene::Market) ? worldReturnPos : player.position);
 
     market.Unload();

@@ -15,6 +15,7 @@ struct Cell {
     int stage = 0;        // 0 = plantat, 1 = răsărit, 2 = matură
     float growth = 0.0f;
     bool watered = false; // crește doar dacă e udată; se resetează la fiecare stadiu
+    int big = 0;          // 0 = normal, 1 = ancoră 2x2 (copac), 2 = celulă acoperită de un copac 2x2
 };
 
 class Farm {

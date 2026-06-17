@@ -42,6 +42,7 @@ void Inventory::Serialize(std::ostream& o) const {
     for (int i = 0; i < (int)Flower::COUNT; i++) o << (unlocked[i] ? 1 : 0) << " "; o << "\n";
     o << wood << " " << crystals << " " << (hasAxe ? 1 : 0) << " " << (hasPickaxe ? 1 : 0) << "\n";
     o << day << " " << xp << " " << level << "\n";
+    o << roadCount << " " << stoneCount << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -52,6 +53,7 @@ void Inventory::Deserialize(std::istream& in) {
     int ax, pk; in >> wood >> crystals >> ax >> pk;
     hasAxe = (ax != 0); hasPickaxe = (pk != 0);
     in >> day >> xp >> level;
+    in >> roadCount >> stoneCount;
 }
 
 void Inventory::TickTime(float dt) {
