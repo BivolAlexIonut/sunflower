@@ -125,3 +125,13 @@ void Player::Draw() const {
 
     DrawTexturePro(sheet, src, dst, origin, 0.0f, WHITE);
 }
+
+void Player::DrawSide(float scale, float groundY) const {
+    const Texture2D& sheet = tex[(int)action][(int)dir];
+
+    Rectangle src{ (float)(frame * FrameW), 0, (float)FrameW, (float)FrameH };
+    float w = FrameW * scale, h = FrameH * scale;
+    Rectangle dst{ position.x, groundY, w, h };
+    Vector2 origin{ w / 2.0f, h };   // ancoră jos-centru → picioarele pe sol
+    DrawTexturePro(sheet, src, dst, origin, 0.0f, WHITE);
+}

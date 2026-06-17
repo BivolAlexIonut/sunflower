@@ -17,6 +17,7 @@ public:
     void Update(float dt);
     void UpdateSide(float dt, float minX, float maxX);   // mers doar stânga/dreapta (scenă side-view)
     void Draw() const;
+    void DrawSide(float scale, float groundY) const;     // mărit, picioarele pe sol (side-view)
 
     void StartAction(Action a);     // pornește o animație de unealtă (one-shot)
     bool IsBusy() const { return acting; }

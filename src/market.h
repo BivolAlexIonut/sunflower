@@ -19,7 +19,7 @@ public:
     static constexpr float GroundY = 440.0f;
 
 private:
-    Texture2D bg{}, ground{}, wall{}, roof{}, door{}, furnace{};
+    Texture2D bg{}, ground{}, groundFill{}, wall{}, roof{}, door{}, furnace{};
     Texture2D barrel{}, crate{}, goods{}, sign{}, stall{}, lantern{}, herbs{};
 
     Camera2D cam{};

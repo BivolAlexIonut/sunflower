@@ -6,26 +6,27 @@
 // Tarabele interactive: x în stradă, etichetă, fel (0 = cumpără sămânță, 1 = vinde flori).
 struct Station { float x; const char* label; int kind; };
 static const Station kStations[] = {
-    {  560, "SEMINTE",  0 },
-    { 1240, "VINDE",    1 },
+    {  500, "SEMINTE",  0 },
+    { 1000, "VINDE",    1 },
 };
 static const int kStationCount = 2;
 static const int kSeedPrice = 8;   // mai ieftin decât în magazinul rapid
 
 void Market::Load() {
-    bg      = LoadTexture("sprites/Market/Background/Background_01.png");
-    ground  = LoadTexture("sprites/Market/Platformer/Ground_05.png");
-    wall    = LoadTexture("sprites/Market/Building/Wall_A_02.png");
-    roof    = LoadTexture("sprites/Market/Building/Roof_A_02.png");
-    door    = LoadTexture("sprites/Market/Building/Door_01.png");
-    furnace = LoadTexture("sprites/Market/Environment/Furnace.png");
-    barrel  = LoadTexture("sprites/Market/Environment/Wooden_Barrel.png");
-    crate   = LoadTexture("sprites/Market/Environment/Wooden_Crate.png");
-    goods   = LoadTexture("sprites/Market/Environment/Goods_01.png");
-    sign    = LoadTexture("sprites/Market/Environment/Sign_01.png");
-    stall   = LoadTexture("sprites/Market/Environment/Stall_01.png");
-    lantern = LoadTexture("sprites/Market/Environment/Street_Lantern.png");
-    herbs   = LoadTexture("sprites/Market/Environment/Herbs.png");
+    bg        = LoadTexture("sprites/Market/Background/Background_01.png");
+    ground    = LoadTexture("sprites/Market/Platformer/Ground_11.png");   // suprafață cu iarbă
+    groundFill= LoadTexture("sprites/Market/Platformer/Ground_06.png");   // pământ dedesubt
+    wall      = LoadTexture("sprites/Market/Building/Wall_A_02.png");
+    roof      = LoadTexture("sprites/Market/Building/Roof_A_04.png");      // acoperiș înclinat
+    door      = LoadTexture("sprites/Market/Building/Door_01.png");
+    furnace   = LoadTexture("sprites/Market/Environment/Furnace.png");
+    barrel    = LoadTexture("sprites/Market/Environment/Wooden_Barrel.png");
+    crate     = LoadTexture("sprites/Market/Environment/Wooden_Crate.png");
+    goods     = LoadTexture("sprites/Market/Environment/Goods_01.png");
+    sign      = LoadTexture("sprites/Market/Environment/Sign_01.png");
+    stall     = LoadTexture("sprites/Market/Environment/Stall_02.png");    // tarabă completă
+    lantern   = LoadTexture("sprites/Market/Environment/Street_Lantern.png");
+    herbs     = LoadTexture("sprites/Market/Environment/Herbs.png");
 
     cam.offset = { 480, 270 };
     cam.zoom = 1.0f;
@@ -33,14 +34,14 @@ void Market::Load() {
 }
 
 void Market::Unload() {
-    UnloadTexture(bg); UnloadTexture(ground); UnloadTexture(wall); UnloadTexture(roof);
-    UnloadTexture(door); UnloadTexture(furnace); UnloadTexture(barrel); UnloadTexture(crate);
-    UnloadTexture(goods); UnloadTexture(sign); UnloadTexture(stall); UnloadTexture(lantern);
-    UnloadTexture(herbs);
+    UnloadTexture(bg); UnloadTexture(ground); UnloadTexture(groundFill); UnloadTexture(wall);
+    UnloadTexture(roof); UnloadTexture(door); UnloadTexture(furnace); UnloadTexture(barrel);
+    UnloadTexture(crate); UnloadTexture(goods); UnloadTexture(sign); UnloadTexture(stall);
+    UnloadTexture(lantern); UnloadTexture(herbs);
 }
 
 void Market::Enter(Player& player) {
-    player.position = { 120, GroundY - 30 };
+    player.position = { 130, GroundY - 40 };
     cam.target = { player.position.x, 270 };
 }
 
@@ -94,41 +95,40 @@ void Market::Draw(const Player& player, const Inventory& inv) const {
 
     BeginMode2D(cam);
 
-    // solul (rând de dale repetate sub GroundY)
+    // solul: un rând de suprafață cu iarbă + pământ dedesubt (două tile-uri diferite)
     int gw = ground.width;
-    for (int gy = 0; gy < 3; gy++)
-        for (int x = 0; x < (int)StreetW + gw; x += gw)
-            DrawTexture(ground, x, (int)GroundY + gy * gw, WHITE);
+    for (int x = -gw; x < (int)StreetW + gw; x += gw) {
+        DrawTexture(ground, x, (int)GroundY, WHITE);              // iarba la suprafață
+        DrawTexture(groundFill, x, (int)GroundY + gw, WHITE);     // pământ sub
+    }
 
-    // clădiri (zid + acoperiș + ușă), ancorate la sol
+    // clădiri scunde cu acoperiș vizibil (zid + acoperiș înclinat + ușă)
     auto building = [&](float x){
-        DrawProp(wall, x, 300, GroundY);
-        DrawProp(roof, x, 150, GroundY - 300);
-        DrawProp(door, x, 150, GroundY);
+        DrawProp(wall, x, 190, GroundY);
+        DrawProp(roof, x, 105, GroundY - 190);
+        DrawProp(door, x, 130, GroundY);
     };
-    building(180);
-    building(1620);
+    building(170);
+    building(1740);
 
-    // forja în centru + decor
-    DrawProp(furnace, 880, 230, GroundY);
-    DrawProp(lantern, 740, 260, GroundY);
-    DrawProp(herbs, 1500, 140, GroundY - 150);
+    // decor pe stradă (spațiat, fără suprapuneri urâte)
+    DrawProp(barrel, 340, 90, GroundY);
+    DrawProp(crate, 720, 95, GroundY);
+    DrawProp(goods, 1200, 75, GroundY);
+    DrawProp(furnace, 1500, 220, GroundY);
+    DrawProp(lantern, 1340, 250, GroundY);
+    DrawProp(herbs, 1720, 130, GroundY - 200);
 
-    // tarabe interactive cu firme
+    // tarabe interactive cu firme deasupra
     for (int i = 0; i < kStationCount; i++) {
-        DrawProp(stall, kStations[i].x, 120, GroundY);
-        DrawProp(sign, kStations[i].x, 90, GroundY - 130);
+        DrawProp(stall, kStations[i].x, 130, GroundY);
+        DrawProp(sign, kStations[i].x, 85, GroundY - 150);
         int tw = MeasureText(kStations[i].label, 18);
-        DrawText(kStations[i].label, (int)kStations[i].x - tw/2, (int)GroundY - 205, 18,
+        DrawText(kStations[i].label, (int)kStations[i].x - tw/2, (int)GroundY - 218, 18,
                  Color{ 60, 40, 20, 255 });
     }
-    // câteva butoaie/lăzi/saci ca decor
-    DrawProp(barrel, 480, 90, GroundY);
-    DrawProp(crate, 980, 90, GroundY);
-    DrawProp(goods, 1040, 80, GroundY);
-    DrawProp(crate, 1320, 90, GroundY);
 
-    player.Draw();
+    player.DrawSide(3.0f, GroundY);
 
     EndMode2D();
 

@@ -180,7 +180,9 @@ int main() {
         EndDrawing();
     }
 
-    SaveIO::Save(SAVE_PATH, inventory, shop, farm, player.position);
+    // la ieșire salvează poziția din LUME (nu cea din scena de market)
+    SaveIO::Save(SAVE_PATH, inventory, shop, farm,
+                 (scene == Scene::Market) ? worldReturnPos : player.position);
 
     market.Unload();
     UnloadTexture(marketSign);
