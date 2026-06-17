@@ -57,9 +57,55 @@ void TileMap::Place(int tx, int ty, Terrain t) {
     if (!found) placed.push_back(i);
 }
 
+bool TileMap::PlotOwned(int pc, int pr) const {
+    if (pc < 0 || pr < 0 || pc >= PlotCols || pr >= PlotRows) return false;
+    return owned[pr * PlotCols + pc] != 0;
+}
+
+bool TileMap::TileLocked(int tx, int ty) const {
+    if (tx < 0 || ty < 0 || tx >= Width || ty >= Height) return true;
+    return !PlotOwned(tx / PlotW, ty / PlotH);
+}
+
+int TileMap::PlotCost(int pc, int pr) const {
+    int tier = (pc > 4 ? pc - 4 : 0) + (pr > 3 ? pr - 3 : 0);
+    if (tier < 1) tier = 1;
+    return 200 * tier;
+}
+int TileMap::PlotLevel(int pc, int pr) const {
+    int tier = (pc > 4 ? pc - 4 : 0) + (pr > 3 ? pr - 3 : 0);
+    return 2 + tier;
+}
+bool TileMap::PlotAdjacentOwned(int pc, int pr) const {
+    return PlotOwned(pc-1, pr) || PlotOwned(pc+1, pr) ||
+           PlotOwned(pc, pr-1) || PlotOwned(pc, pr+1);
+}
+void TileMap::BuyPlot(int pc, int pr) {
+    if (pc >= 0 && pr >= 0 && pc < PlotCols && pr < PlotRows)
+        owned[pr * PlotCols + pc] = 1;
+}
+
+void TileMap::DrawFog(const Camera2D& cam, bool landMode) const {
+    for (int pr = 0; pr < PlotRows; pr++)
+        for (int pc = 0; pc < PlotCols; pc++) {
+            if (PlotOwned(pc, pr)) continue;
+            Rectangle r{ (float)(pc*PlotW*TileSize), (float)(pr*PlotH*TileSize),
+                         (float)(PlotW*TileSize), (float)(PlotH*TileSize) };
+            // în modul hartă: doar un voal ușor + chenar; în joc: ceață densă
+            DrawRectangleRec(r, landMode ? Color{ 10,12,25,110 } : Color{ 8,10,20,205 });
+            if (landMode) {
+                bool avail = PlotAdjacentOwned(pc, pr);
+                Color edge = avail ? Color{ 255,220,90,255 } : Color{ 90,90,110,255 };
+                DrawRectangleLinesEx(r, 2, edge);
+            }
+        }
+}
+
 void TileMap::Serialize(std::ostream& o) const {
     o << placed.size() << "\n";
     for (int i : placed) o << i << " " << (int)tiles[i] << "\n";
+    for (char c : owned) o << (int)c << " ";
+    o << "\n";
 }
 
 void TileMap::Deserialize(std::istream& in) {
@@ -69,15 +115,23 @@ void TileMap::Deserialize(std::istream& in) {
         int i, t; in >> i >> t;
         if (i >= 0 && i < (int)tiles.size()) { tiles[i] = (Terrain)t; placed.push_back(i); }
     }
+    for (int k = 0; k < (int)owned.size(); k++) { int v; in >> v; owned[k] = (char)v; }
 }
 
 void TileMap::Build() {
     tiles.assign(Width * Height, Terrain::Grass);
 
-    // pădurea (stânga) — pete de iarbă mai închisă pentru textură
+    // parcele: deții regiunea originală (tx<50, ty<32); restul = teren de cumpărat
+    owned.assign(PlotCols * PlotRows, 0);
+    for (int pr = 0; pr < PlotRows; pr++)
+        for (int pc = 0; pc < PlotCols; pc++)
+            if (pc <= 4 && pr <= 3) owned[pr * PlotCols + pc] = 1;
+
+    // pete de iarbă mai închisă pe terenul nou (textură) + în pădure
     for (int ty = 0; ty < Height; ty++)
-        for (int tx = 0; tx < 16; tx++)
-            if (Hash(tx, ty) % 4 == 0) Set(tx, ty, Terrain::GrassDark);
+        for (int tx = 0; tx < Width; tx++)
+            if ((tx < 16 || tx >= 50 || ty >= 32) && Hash(tx, ty) % 5 == 0)
+                Set(tx, ty, Terrain::GrassDark);
 
     // GRĂDINA (centru) — incintă cu zid, iarbă înăuntru (se plantează doar aici)
     for (int ty = GY0; ty <= GY1; ty++) {

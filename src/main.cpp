@@ -63,6 +63,9 @@ int main() {
         shop.ApplySkin(player);
     }
     float autosaveTimer = 0.0f;
+    bool landMode = false;                 // modul hartă (cumpărat teren)
+    const int LandLevel = 3;               // nivelul la care se deblochează
+    int landMsgTimer = 0;                  // afișează scurt "deblocat la nivel X"
 
     Camera2D camera{};
     camera.target = player.position;
@@ -91,6 +94,15 @@ int main() {
         shop.HandleInput(inventory, player);
         bool frozen = shop.BlocksGameplay();
 
+        // comutarea modului hartă (cumpărat teren) — deblocat de la un nivel
+        if (!frozen && IsKeyPressed(KEY_L)) {
+            if (inventory.level >= LandLevel) landMode = !landMode;
+            else landMsgTimer = 120;
+        }
+        if (landMode && IsKeyPressed(KEY_ESCAPE)) landMode = false;
+        if (landMsgTimer > 0) landMsgTimer--;
+        bool blockGameplay = frozen || landMode;
+
         Vector2 mw = GetScreenToWorld2D(GetMousePosition(), camera);
         int tx = (int)floorf(mw.x / TS), ty = (int)floorf(mw.y / TS);
         Vector2 tileCenter{ tx * TS + TS / 2.0f, ty * TS + TS / 2.0f };
@@ -100,7 +112,23 @@ int main() {
         bool nearMarket = (fabsf(player.position.x - marketSpot.x) < 48 &&
                            fabsf(player.position.y - (marketSpot.y - 24)) < 48);
 
-        if (!frozen) {
+        // parcela de sub maus (în modul hartă)
+        int hpc = (int)floorf(mw.x / (TileMap::PlotW * TS));
+        int hpr = (int)floorf(mw.y / (TileMap::PlotH * TS));
+
+        if (landMode) {
+            // cumpără parcela dacă e validă (lângă teren deținut, nivel ok, bani ok)
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+                hpc >= 0 && hpr >= 0 && hpc < TileMap::PlotCols && hpr < TileMap::PlotRows &&
+                !map.PlotOwned(hpc, hpr) && map.PlotAdjacentOwned(hpc, hpr) &&
+                inventory.level >= map.PlotLevel(hpc, hpr) &&
+                inventory.money >= map.PlotCost(hpc, hpr)) {
+                inventory.money -= map.PlotCost(hpc, hpr);
+                map.BuyPlot(hpc, hpr);
+            }
+        }
+
+        if (!blockGameplay) {
             if (GetMouseWheelMove() != 0 || IsKeyPressed(KEY_Q)) inventory.CycleSeed();
 
             Vector2 prev = player.position;
@@ -108,7 +136,8 @@ int main() {
 
             Vector2 feet{ player.position.x, player.position.y + 22 };
             int ftx = (int)(feet.x / TS), fty = (int)(feet.y / TS);
-            if (map.IsSolid(ftx, fty) || world.Blocks(feet)) player.position = prev;
+            if (map.IsSolid(ftx, fty) || map.TileLocked(ftx, fty) || world.Blocks(feet))
+                player.position = prev;   // nu poți intra pe teren necumpărat
 
             if (player.position.x < 16) player.position.x = 16;
             if (player.position.y < 16) player.position.y = 16;
@@ -143,13 +172,20 @@ int main() {
             }
         }
 
-        camera.target.x += (player.position.x - camera.target.x) * 10.0f * dt;
-        camera.target.y += (player.position.y - camera.target.y) * 10.0f * dt;
+        // camera: în modul hartă privim toată harta (zoom out), altfel urmărim jucătorul
+        Vector2 camGoal = landMode ? Vector2{ map.WorldWidth()/2, map.WorldHeight()/2 }
+                                   : player.position;
+        float zoomGoal = landMode ? 0.34f : 1.7f;
+        camera.target.x += (camGoal.x - camera.target.x) * 8.0f * dt;
+        camera.target.y += (camGoal.y - camera.target.y) * 8.0f * dt;
+        camera.zoom += (zoomGoal - camera.zoom) * 8.0f * dt;
 
-        float halfW = screenW / 2.0f / camera.zoom, halfH = screenH / 2.0f / camera.zoom;
-        float maxX = map.WorldWidth() - halfW, maxY = map.WorldHeight() - halfH;
-        camera.target.x = (halfW > maxX) ? map.WorldWidth()/2  : fmaxf(halfW, fminf(camera.target.x, maxX));
-        camera.target.y = (halfH > maxY) ? map.WorldHeight()/2 : fmaxf(halfH, fminf(camera.target.y, maxY));
+        if (!landMode) {
+            float halfW = screenW / 2.0f / camera.zoom, halfH = screenH / 2.0f / camera.zoom;
+            float maxX = map.WorldWidth() - halfW, maxY = map.WorldHeight() - halfH;
+            camera.target.x = (halfW > maxX) ? map.WorldWidth()/2  : fmaxf(halfW, fminf(camera.target.x, maxX));
+            camera.target.y = (halfH > maxY) ? map.WorldHeight()/2 : fmaxf(halfH, fminf(camera.target.y, maxY));
+        }
 
         autosaveTimer += dt;
         if (autosaveTimer >= 20.0f) {
@@ -179,13 +215,55 @@ int main() {
         player.Draw();
         if (marketSpot.y > pFeet) drawSign();
         world.DrawFront(pFeet);
+
+        // ceața peste parcelele necumpărate (densă în joc, ușoară în modul hartă)
+        map.DrawFog(camera, landMode);
+        // evidențiază parcela de sub maus în modul hartă
+        if (landMode && hpc >= 0 && hpr >= 0 && hpc < TileMap::PlotCols && hpr < TileMap::PlotRows
+            && !map.PlotOwned(hpc, hpr)) {
+            Rectangle r{ (float)(hpc*TileMap::PlotW*TS), (float)(hpr*TileMap::PlotH*TS),
+                         (float)(TileMap::PlotW*TS), (float)(TileMap::PlotH*TS) };
+            bool ok = map.PlotAdjacentOwned(hpc,hpr) && inventory.level >= map.PlotLevel(hpc,hpr)
+                      && inventory.money >= map.PlotCost(hpc,hpr);
+            DrawRectangleRec(r, ok ? Color{ 90,200,90,70 } : Color{ 200,80,80,60 });
+            DrawRectangleLinesEx(r, 3, ok ? Color{ 140,255,140,255 } : Color{ 255,120,120,255 });
+        }
         EndMode2D();
 
         // HUD
         inventory.Draw(flowerTex, iconTex);
         inventory.DrawLevel(farm.CropCount());
-        DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
-        if (inventory.buildSel != 0) {
+
+        if (landMode) {
+            DrawRectangle(0, 0, screenW, 38, Color{ 0,0,0,150 });
+            DrawText("MOD HARTA - cumpara teren. Mausul peste o parcela, click ca sa cumperi. ESC/L iesi.",
+                     16, 10, 18, Color{ 255, 230, 150, 255 });
+            // info despre parcela de sub maus
+            if (hpc >= 0 && hpr >= 0 && hpc < TileMap::PlotCols && hpr < TileMap::PlotRows
+                && !map.PlotOwned(hpc, hpr)) {
+                int cost = map.PlotCost(hpc,hpr), lvl = map.PlotLevel(hpc,hpr);
+                const char* st;
+                if (!map.PlotAdjacentOwned(hpc,hpr)) st = "trebuie sa fie langa terenul tau";
+                else if (inventory.level < lvl)      st = "nivel insuficient";
+                else if (inventory.money < cost)     st = "bani insuficienti";
+                else                                  st = "CLICK pentru a cumpara";
+                const char* info = TextFormat("Parcela: cost %d  |  nivel necesar %d  |  %s", cost, lvl, st);
+                int w = MeasureText(info, 20);
+                DrawRectangle(screenW/2 - w/2 - 12, screenH - 52, w + 24, 34, Color{ 0,0,0,170 });
+                DrawText(info, screenW/2 - w/2, screenH - 46, 20, WHITE);
+            }
+        } else {
+            DrawText("TAB  -  Meniu", screenW - 150, screenH - 28, 18, Color{ 255, 255, 255, 200 });
+            const char* lh = (inventory.level >= LandLevel) ? "L - Cumpara teren" : "";
+            if (lh[0]) DrawText(lh, screenW - 320, screenH - 28, 18, Color{ 200, 230, 160, 220 });
+        }
+        if (landMsgTimer > 0) {
+            const char* m = TextFormat("Cumparatul de teren se deblocheaza la nivelul %d", LandLevel);
+            int w = MeasureText(m, 20);
+            DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 32, Color{ 0,0,0,180 });
+            DrawText(m, screenW/2 - w/2, 66, 20, Color{ 255, 200, 150, 255 });
+        }
+        if (inventory.buildSel != 0 && !landMode) {
             const char* bm = (inventory.buildSel == 1)
                 ? TextFormat("CONSTRUIESTI: Drum (%d) - click pune, B/dreapta iesi", inventory.roadCount)
                 : TextFormat("CONSTRUIESTI: Piatra (%d) - click pune, B/dreapta iesi", inventory.stoneCount);
@@ -193,7 +271,7 @@ int main() {
             DrawRectangle(screenW/2 - w/2 - 12, 96, w + 24, 32, Color{ 0,0,0,170 });
             DrawText(bm, screenW/2 - w/2, 102, 20, Color{ 255, 230, 150, 255 });
         }
-        if (nearMarket && !frozen) {
+        if (nearMarket && !blockGameplay) {
             const char* m = "[E] Intra in Market";
             int w = MeasureText(m, 22);
             DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
