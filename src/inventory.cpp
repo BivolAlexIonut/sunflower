@@ -37,6 +37,24 @@ const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
 // Iconița de monede din FG_Item_Icons.png
 static const Rectangle kCoinIcon = { 0, 80, 16, 16 };
 
+// Dificultăți — toate păstrează un ritm realist (timpi lungi), dar reglează economia.
+//                   grow   sell   seed  startMoney
+struct DiffCfg { float grow, sell, seed; int money; const char* name; const char* desc; };
+static const DiffCfg kDiff[3] = {
+    { 0.85f, 1.20f, 0.85f, 150, "Gradinar",        "Pornire blanda: bani in plus, florile cresc putin mai repede si valoreaza mai mult." },
+    { 1.00f, 1.00f, 1.00f,  60, "Fermier",         "Echilibrat. Asa e gandit jocul." },
+    { 1.20f, 0.85f, 1.15f,  30, "Supravietuitor",  "Realist si aspru: totul costa mai mult, creste mai incet si se vinde mai ieftin." },
+};
+static int ClampDiff(int d) { return (d < 0) ? 0 : (d > 2) ? 2 : d; }
+
+const char* Inventory::DifficultyName(int d) { return kDiff[ClampDiff(d)].name; }
+const char* Inventory::DifficultyDesc(int d) { return kDiff[ClampDiff(d)].desc; }
+int Inventory::StartMoneyFor(int d) { return kDiff[ClampDiff(d)].money; }
+float Inventory::GrowMul() const { return kDiff[ClampDiff(difficulty)].grow; }
+float Inventory::SellMul() const { return kDiff[ClampDiff(difficulty)].sell; }
+float Inventory::SeedMul() const { return kDiff[ClampDiff(difficulty)].seed; }
+int   Inventory::StartMoney() const { return kDiff[ClampDiff(difficulty)].money; }
+
 void Inventory::Serialize(std::ostream& o) const {
     o << money << " " << selectedSeed << "\n";
     for (int i = 0; i < (int)Flower::COUNT; i++) o << seeds[i] << " ";      o << "\n";
@@ -47,6 +65,7 @@ void Inventory::Serialize(std::ostream& o) const {
     o << roadCount << " " << stoneCount << "\n";
     for (int i = 0; i < BuffCount; i++) o << buff[i] << " ";
     o << "\n";
+    o << difficulty << " " << playSeconds << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -59,12 +78,14 @@ void Inventory::Deserialize(std::istream& in) {
     in >> day >> xp >> level;
     in >> roadCount >> stoneCount;
     for (int i = 0; i < BuffCount; i++) in >> buff[i];
+    in >> difficulty >> playSeconds;
 }
 
 void Inventory::TickTime(float dt) {
     dayTimer += dt;
     if (dayTimer >= DaySeconds) { dayTimer -= DaySeconds; day++; }
     if (levelUpTimer > 0) levelUpTimer--;
+    playSeconds += dt;
 }
 
 float Inventory::PriceFactor(int flower) const {
@@ -74,7 +95,7 @@ float Inventory::PriceFactor(int flower) const {
 }
 
 int Inventory::CurrentSell(int flower) const {
-    float p = FLOWERS[flower].sellPrice * PriceFactor(flower);
+    float p = FLOWERS[flower].sellPrice * PriceFactor(flower) * SellMul();
     if (BuffActive(3)) p *= 1.5f;   // power-up bonus bani
     return (int)p;
 }
@@ -105,7 +126,7 @@ void Inventory::AddXP(int amount) {
         std::string msg = TextFormat("Nivel %d!  +%d bani", level, reward);
 
         for (int i = 0; i < (int)Flower::COUNT; i++)   // deblochează următoarea floare gratis
-            if (!unlocked[i]) { unlocked[i] = true; msg += "  +floare noua"; break; }
+            if (!unlocked[i]) { unlocked[i] = true; msg += TextFormat("  +floare noua: %s", FLOWERS[i].name); break; }
 
         if (level == 3) msg += "  (apasa L: cumpara teren!)";
         if (level == 5 && !hasAxe)      { hasAxe = true;      msg += "  +Topor"; }
@@ -114,6 +135,7 @@ void Inventory::AddXP(int amount) {
 
         levelUpMsg = msg;
         levelUpTimer = 220;
+        levelUpPending = true;     // declanșează modalul de level-up
     }
 }
 
@@ -130,15 +152,6 @@ void Inventory::DrawLevel(int plantedCount) const {
     DrawText(TextFormat("XP %d/%d", xp, XPForNext()), x + 14, y + 36, 11, WHITE);
 
     DrawText(TextFormat("Flori plantate: %d", plantedCount), x + 12, y + 54, 15, Color{ 200, 220, 200, 255 });
-
-    // popup de level-up (centru-sus)
-    if (levelUpTimer > 0 && !levelUpMsg.empty()) {
-        int tw = MeasureText(levelUpMsg.c_str(), 22);
-        int px = GetScreenWidth()/2 - tw/2, py = 120;
-        DrawRectangle(px - 16, py - 8, tw + 32, 40, Color{ 30, 60, 30, 220 });
-        DrawRectangleLinesEx(Rectangle{ (float)(px-16),(float)(py-8),(float)(tw+32),40 }, 2, Color{ 140, 230, 140, 255 });
-        DrawText(levelUpMsg.c_str(), px, py, 22, Color{ 200, 255, 200, 255 });
-    }
 }
 
 void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {

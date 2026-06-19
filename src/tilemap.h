@@ -4,7 +4,7 @@
 #include <vector>
 #include <iosfwd>
 
-enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall, Fence };
+enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall, Fence, Water };
 
 class TileMap {
 public:
@@ -51,10 +51,16 @@ private:
     std::vector<Terrain> tiles;
     std::vector<int> placed;   // indicii tile-urilor construite de jucător (pentru salvare)
     std::vector<char> owned;   // parcele deținute (PlotCols*PlotRows)
-    Texture2D grounds{};    // FG_Grounds (iarbă/pământ, 16px)
-    Texture2D fortress{};   // FG_Fortress_A5 (piatră/zid, 32px)
-    Texture2D fence{};      // spr_fencePost (gard de lemn)
+    Texture2D grass[4]{};   // NewAssets Grass_1..4_Middle (iarbă lush, 16px)
+    Texture2D path{};       // NewAssets Path_Middle (cărare)
+    Texture2D hedge{};      // NewAssets Hedge_Tiles (gard verde, autotile 4x4)
+    Texture2D water{};      // NewAssets Water_Tile_1 (iaz, autotile)
+    Texture2D caveFloor{};  // NewAssets Cave_Floor_Middle (podea peșteră)
+    Texture2D caveWall{};   // NewAssets Cave_Walls (perete de stâncă)
 
     int Idx(int tx, int ty) const { return ty * Width + tx; }
     void Set(int tx, int ty, Terrain t);
+    void DrawGrass(int tx, int ty) const;    // iarbă cu variație
+    void DrawHedge(int tx, int ty) const;    // gard verde (9-slice după poziția în grădină)
+    void DrawWater(int tx, int ty) const;    // iaz (9-slice după vecini)
 };

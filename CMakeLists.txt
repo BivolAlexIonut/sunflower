@@ -27,6 +27,9 @@ add_executable(sunflower
     src/world.cpp
     src/market.cpp
     src/saveio.cpp
+    src/particles.cpp
+    src/memories.cpp
+    src/ambient.cpp
 )
 target_link_libraries(sunflower PRIVATE raylib)
 

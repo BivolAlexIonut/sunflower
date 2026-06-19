@@ -61,7 +61,7 @@ bool Market::Update(float dt, Player& player, Inventory& inv) {
             if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_W)) buyRow = (buyRow + n - 1) % n;
             if (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_B)) {
                 int f = list[buyRow];
-                int price = (int)(FLOWERS[f].seedCost * 0.85f);   // la market e mai ieftin
+                int price = (int)(FLOWERS[f].seedCost * 0.85f * inv.SeedMul());   // la market e mai ieftin
                 if (inv.money >= price) { inv.money -= price; inv.seeds[f]++; inv.selectedSeed = f; }
             }
         }
@@ -183,7 +183,7 @@ void Market::Draw(const Player& player, const Inventory& inv) const {
             int f = list[j];
             int ry = py + 44 + j * 30;
             if (j == buyRow) DrawRectangle(px + 8, ry - 4, pw - 16, 28, Color{ 255,255,255,28 });
-            int price = (int)(FLOWERS[f].seedCost * 0.85f);
+            int price = (int)(FLOWERS[f].seedCost * 0.85f * inv.SeedMul());
             DrawText(FLOWERS[f].name, px + 18, ry, 18, WHITE);
             DrawText(TextFormat("%d banuti   (ai %d sem.)", price, inv.seeds[f]),
                      px + 200, ry, 16, Color{ 200, 215, 200, 255 });

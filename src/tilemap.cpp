@@ -9,30 +9,27 @@ static unsigned int Hash(int x, int y) {
     return h;
 }
 
-// Surse în atlas (px). Iarbă/pământ = FG_Grounds (16px); piatră/zid = A5 (32px).
-static Rectangle SrcFor(Terrain t) {
-    switch (t) {
-        case Terrain::Grass:     return { 304, 80, 16, 16 };
-        case Terrain::GrassDark: return { 400, 80, 16, 16 };
-        case Terrain::Dirt:      return {  80, 16, 16, 16 };
-        case Terrain::Stone:     return {  32, 32, 32, 32 };
-        case Terrain::Wall:      return {  64,  0, 32, 32 };
-        case Terrain::Fence:     return { 304, 80, 16, 16 };
-    }
-    return { 304, 80, 16, 16 };
-}
-
 void TileMap::Load() {
-    grounds  = LoadTexture("sprites/Tilesets/FG_Grounds.png");
-    fortress = LoadTexture("sprites/RPG Maker/RPG Maker MZ (32x32)/tilesets/FG_Fortress_A5.png");
-    fence    = LoadTexture("sprites/Tilesets/spr_fencePost.png");
+    const char* NA = "sprites/NewAssets/";
+    grass[0] = LoadTexture(TextFormat("%sTiles/Grass/Grass_1_Middle.png", NA));
+    grass[1] = LoadTexture(TextFormat("%sTiles/Grass/Grass_2_Middle.png", NA));
+    grass[2] = LoadTexture(TextFormat("%sTiles/Grass/Grass_3_Middle.png", NA));
+    grass[3] = LoadTexture(TextFormat("%sTiles/Grass/Grass_4_Middle.png", NA));
+    path     = LoadTexture(TextFormat("%sTiles/Grass/Path_Middle.png", NA));
+    hedge    = LoadTexture(TextFormat("%sTiles/Hedge_Tiles.png", NA));
+    water     = LoadTexture(TextFormat("%sTiles/Water/Water_Tile_1.png", NA));
+    caveFloor = LoadTexture(TextFormat("%sTiles/Cave/Cave_Floor_Middle.png", NA));
+    caveWall  = LoadTexture(TextFormat("%sTiles/Cave/Cave_Walls.png", NA));
     tiles.assign(Width * Height, Terrain::Grass);
 }
 
 void TileMap::Unload() {
-    UnloadTexture(grounds);
-    UnloadTexture(fortress);
-    UnloadTexture(fence);
+    for (int i = 0; i < 4; i++) UnloadTexture(grass[i]);
+    UnloadTexture(path);
+    UnloadTexture(hedge);
+    UnloadTexture(water);
+    UnloadTexture(caveFloor);
+    UnloadTexture(caveWall);
 }
 
 void TileMap::Set(int tx, int ty, Terrain t) {
@@ -46,7 +43,7 @@ Terrain TileMap::At(int tx, int ty) const {
 
 bool TileMap::IsSolid(int tx, int ty) const {
     Terrain t = At(tx, ty);
-    return t == Terrain::Wall || t == Terrain::Fence;
+    return t == Terrain::Wall || t == Terrain::Fence || t == Terrain::Water;
 }
 
 bool TileMap::CanFarm(int tx, int ty) const {
@@ -92,13 +89,15 @@ void TileMap::BuyPlot(int pc, int pr) {
 }
 
 int TileMap::PlotTheme(int pc, int pr) const {
-    return (int)(Hash(pc * 13 + 7, pr * 17 + 3) % 3);
+    return (int)(Hash(pc * 13 + 7, pr * 17 + 3) % 5);
 }
 const char* TileMap::ThemeName(int t) {
     switch (t) {
         case 0:  return "Padure (lemn)";
         case 1:  return "Mina de cristale";
-        default: return "Crang des";
+        case 2:  return "Crang des (lemn)";
+        case 3:  return "Livada (lemn + seminte)";
+        default: return "Mina bogata (cristale)";
     }
 }
 
@@ -179,6 +178,41 @@ void TileMap::Build() {
     for (int ty = 28; ty <= 30; ty++)
         for (int tx = 10; tx <= 33; tx++)
             Set(tx, ty, Terrain::Dirt);
+
+    // iaz decorativ (lângă grădină, stânga) — apă, blochează mersul
+    for (int ty = 21; ty <= 24; ty++)
+        for (int tx = 15; tx <= 18; tx++)
+            Set(tx, ty, Terrain::Water);
+}
+
+static const Rectangle kSrc16{ 0, 0, 16, 16 };
+
+void TileMap::DrawGrass(int tx, int ty) const {
+    const float TS = (float)TileSize;
+    unsigned int h = Hash(tx, ty);
+    int v = (h % 13 == 0) ? 1 : (h % 29 == 0) ? 2 : 0;   // variație rară, discretă
+    DrawTexturePro(grass[v], kSrc16,
+        Rectangle{ tx*TS, ty*TS, TS, TS }, { 0, 0 }, 0, WHITE);
+}
+
+// Gard verde (Hedge_Tiles): bloc 9-slice la offset (16,16). Aleg piesa după poziția în grădină.
+void TileMap::DrawHedge(int tx, int ty) const {
+    const float TS = (float)TileSize;
+    int col = (tx == GX0) ? 0 : (tx == GX1) ? 2 : 1;
+    int row = (ty == GY0) ? 0 : (ty == GY1) ? 2 : 1;
+    Rectangle src{ 16.0f + col*16, 16.0f + row*16, 16, 16 };
+    DrawTexturePro(hedge, src, Rectangle{ tx*TS, ty*TS, TS, TS }, { 0, 0 }, 0, WHITE);
+}
+
+// Iaz (Water_Tile_1): 9-slice (top 3x3) după vecinii de apă.
+void TileMap::DrawWater(int tx, int ty) const {
+    const float TS = (float)TileSize;
+    bool wl = At(tx-1, ty) == Terrain::Water, wr = At(tx+1, ty) == Terrain::Water;
+    bool wu = At(tx, ty-1) == Terrain::Water, wd = At(tx, ty+1) == Terrain::Water;
+    int col = (!wl) ? 0 : (!wr) ? 2 : 1;
+    int row = (!wu) ? 0 : (!wd) ? 2 : 1;
+    Rectangle src{ (float)(col*16), (float)(row*16), 16, 16 };
+    DrawTexturePro(water, src, Rectangle{ tx*TS, ty*TS, TS, TS }, { 0, 0 }, 0, WHITE);
 }
 
 void TileMap::Draw(const Camera2D& cam) const {
@@ -193,22 +227,31 @@ void TileMap::Draw(const Camera2D& cam) const {
     for (int y = y0; y < y1; y++) {
         for (int x = x0; x < x1; x++) {
             Terrain t = tiles[Idx(x, y)];
-            // gardul: iarbă dedesubt + stâlp de lemn (bottom-anchored, puțin mai înalt)
-            if (t == Terrain::Fence) {
-                DrawTexturePro(grounds, SrcFor(Terrain::Grass),
-                    Rectangle{ (float)(x*TileSize), (float)(y*TileSize), (float)TileSize, (float)TileSize },
-                    {0,0}, 0, WHITE);
-                Rectangle fsrc{ 44, 36, 26, 44 };   // un stâlp de gard din spr_fencePost
-                DrawTexturePro(fence, fsrc,
-                    Rectangle{ (float)(x*TileSize), (float)(y*TileSize) - 10, (float)TileSize, (float)TileSize + 10 },
-                    {0,0}, 0, WHITE);
-                continue;
+            Rectangle dst{ (float)(x*TileSize), (float)(y*TileSize), (float)TileSize, (float)TileSize };
+            switch (t) {
+                case Terrain::Grass:
+                case Terrain::GrassDark:
+                    DrawGrass(x, y);
+                    break;
+                case Terrain::Dirt:                       // cărare pe iarbă
+                    DrawGrass(x, y);
+                    DrawTexturePro(path, kSrc16, dst, { 0, 0 }, 0, WHITE);
+                    break;
+                case Terrain::Fence:                      // gard verde pe iarbă
+                    DrawGrass(x, y);
+                    DrawHedge(x, y);
+                    break;
+                case Terrain::Water:                      // iaz pe iarbă
+                    DrawGrass(x, y);
+                    DrawWater(x, y);
+                    break;
+                case Terrain::Stone:                      // podea de peșteră
+                    DrawTexturePro(caveFloor, kSrc16, dst, { 0, 0 }, 0, WHITE);
+                    break;
+                case Terrain::Wall:                       // perete de stâncă
+                    DrawTexturePro(caveWall, Rectangle{ 16, 96, 16, 16 }, dst, { 0, 0 }, 0, WHITE);
+                    break;
             }
-            const Texture2D& tex = (t == Terrain::Stone || t == Terrain::Wall) ? fortress : grounds;
-            Rectangle src = SrcFor(t);
-            Rectangle dst{ (float)(x * TileSize), (float)(y * TileSize),
-                           (float)TileSize, (float)TileSize };
-            DrawTexturePro(tex, src, dst, { 0, 0 }, 0.0f, WHITE);
         }
     }
 }

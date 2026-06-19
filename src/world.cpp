@@ -10,14 +10,15 @@ static unsigned int Hash(int a, int b) {
 }
 
 void World::Load() {
-    treeTex = LoadTexture("sprites/Objects/FG_Tree_Summer.png");
+    treeTex[0] = LoadTexture("sprites/NewAssets/Trees/Big_Oak_Tree.png");
+    treeTex[1] = LoadTexture("sprites/NewAssets/Trees/Big_Spruce_tree.png");
     crystalTex[0] = LoadTexture("sprites/Objects/FG_Crystal_Blue_1.png");
     crystalTex[1] = LoadTexture("sprites/Objects/FG_Crystal_Gold_1.png");
     crystalTex[2] = LoadTexture("sprites/Objects/FG_Crystal_Green_1.png");
     crystalTex[3] = LoadTexture("sprites/Objects/FG_Crystal_Red_1.png");
 }
 void World::Unload() {
-    UnloadTexture(treeTex);
+    for (int i = 0; i < 2; i++) UnloadTexture(treeTex[i]);
     for (int i = 0; i < 4; i++) UnloadTexture(crystalTex[i]);
 }
 
@@ -101,11 +102,14 @@ int World::Interact(int tx, int ty, Inventory& inv, Player& player) {
 }
 
 void World::DrawNode(const Node& n) const {
-    if (n.respawn > 0) return;
     if (n.type == NodeType::Tree) {
-        DrawTexturePro(treeTex, Rectangle{ n.variant*64.0f, 0, 64, 80 },
-            Rectangle{ n.pos.x, n.pos.y, 64, 80 }, { 32, 80 }, 0, WHITE);
+        // copacul are 3 cadre de 64x80: 0 = ciot, 1/2 = copac. Tăiat → arată ciotul.
+        int ti = ((n.variant % 2) + 2) % 2;
+        int frame = (n.respawn > 0) ? 0 : 1 + (n.variant & 1);
+        DrawTexturePro(treeTex[ti], Rectangle{ frame*64.0f, 0, 64, 80 },
+            Rectangle{ n.pos.x, n.pos.y, 72, 90 }, { 36, 84 }, 0, WHITE);
     } else {
+        if (n.respawn > 0) return;                   // cristalele dispar până reapar
         int frame = ((int)(animTime * 8)) % 8;       // licărire
         int col = (n.variant >= 0 && n.variant < 4) ? n.variant : 0;
         DrawTexturePro(crystalTex[col], Rectangle{ frame*16.0f, 0, 16, 16 },
@@ -119,11 +123,13 @@ void World::PopulatePlot(int pc, int pr, int theme) {
     for (int ty = ty0; ty < ty0 + TileMap::PlotH; ty++) {
         for (int tx = tx0; tx < tx0 + TileMap::PlotW; tx++) {
             unsigned int h = Hash(tx * 5 + 1, ty * 9 + 2);
-            if (theme == 1) {                          // mină de cristale (grilă)
-                if (tx % 2 == 0 && ty % 2 == 0)
+            if (theme == 1 || theme == 4) {            // mină de cristale (4 = bogată, mai densă)
+                bool place = (theme == 4) ? ((tx + ty) % 2 == 0)
+                                          : (tx % 2 == 0 && ty % 2 == 0);
+                if (place)
                     nodes.push_back({ NodeType::Crystal,
                         { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
-            } else {                                   // pădure / crâng (copaci uniformi)
+            } else {                                   // pădure / crâng / livadă (copaci uniformi)
                 int step = (theme == 2) ? 2 : 3;       // crâng des = mai dens
                 if (tx % step == 1 && ty % step == 1)
                     nodes.push_back({ NodeType::Tree,
