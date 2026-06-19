@@ -41,7 +41,7 @@ public:
 
 private:
     std::vector<Node> nodes;
-    Texture2D treeTex{};
+    Texture2D treeTex[2]{};       // Stejar, Brad (fiecare 192x80 = ciot / copac / copac)
     Texture2D crystalTex[4]{};   // Blue, Gold, Green, Red
     float animTime = 0.0f;
 

@@ -1,11 +1,13 @@
 #include "shop.h"
 #include "inventory.h"
 #include "player.h"
+#include "memories.h"
 #include <string>
 #include <ostream>
 #include <istream>
 
-static const char* kTabNames[Shop::TabCount] = { "MAGAZIN", "UNELTE", "CONSTR.", "SKIN-URI", "AJUTOR" };
+static const char* kTabNames[Shop::TabCount] =
+    { "MAGAZIN", "UNELTE", "CONSTR.", "SKIN-URI", "AJUTOR", "AMINTIRI" };
 
 static const int kAxeCost = 80;
 static const int kPickaxeCost = 220;
@@ -33,6 +35,7 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
     if (IsKeyPressed(KEY_THREE)) { tab = 2; row = 0; }
     if (IsKeyPressed(KEY_FOUR))  { tab = 3; row = 0; }
     if (IsKeyPressed(KEY_FIVE))  { tab = 4; row = 0; }
+    if (IsKeyPressed(KEY_SIX))   { tab = 5; row = 0; }
 
     if (tab == 0) {                                   // MAGAZIN (flori)
         int n = (int)Flower::COUNT;
@@ -44,9 +47,9 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             inv.money -= FLOWERS[row].unlockCost;
             inv.unlocked[row] = true;
         }
-        if (IsKeyPressed(KEY_B) && inv.unlocked[row] &&
-            inv.money >= FLOWERS[row].seedCost) {
-            inv.money -= FLOWERS[row].seedCost;
+        int seedCost = (int)(FLOWERS[row].seedCost * inv.SeedMul());
+        if (IsKeyPressed(KEY_B) && inv.unlocked[row] && inv.money >= seedCost) {
+            inv.money -= seedCost;
             inv.seeds[row]++;
             inv.selectedSeed = row;        // o selectez automat → apare în bara de jos
         }
@@ -140,15 +143,12 @@ void Shop::DrawTabs(int x, int y, int w) const {
     DrawRectangle(x, y + 40, w, 3, Color{ 255, 220, 90, 255 });
 }
 
-void Shop::Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& icons) const {
+void Shop::Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& icons,
+                const Memories& mem) const {
     if (!open) return;
     int x, y, w, h;
     DrawFrame(x, y, w, h);
     DrawTabs(x, y, w);
-
-    // bani (mereu vizibili sus-dreapta)
-    DrawTexturePro(icons, kCoinIcon, Rectangle{ (float)(x + w - 110), (float)(y + 8), 24, 24 }, {0,0}, 0, WHITE);
-    DrawText(TextFormat("%d", inv.money), x + w - 80, y + 10, 22, Color{ 255, 220, 90, 255 });
 
     int cx = x + 20, cy = y + 56, cw = w - 40, ch = h - 76;
     if (tab == 0) DrawShop(cx, cy, cw, ch, inv, ftex);
@@ -156,9 +156,13 @@ void Shop::Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& ic
     if (tab == 2) DrawBuild(cx, cy, cw, ch, inv);
     if (tab == 3) DrawSkins(cx, cy, cw, ch, inv);
     if (tab == 4) DrawHelp(cx, cy, cw, ch);
+    if (tab == 5) mem.DrawAlbum(cx, cy, cw, ch, inv.level);
 
-    DrawText("1-5 sau Stanga/Dreapta: fila   |   Sus/Jos: alege   |   TAB/ESC: inchide",
-             x + 20, y + h - 28, 15, Color{ 170, 170, 170, 255 });
+    DrawText("1-6 sau Stanga/Dreapta: fila  |  Sus/Jos: alege  |  TAB/ESC: inchide",
+             x + 20, y + h - 26, 14, Color{ 170, 170, 170, 255 });
+    // bani (jos-dreapta, separat de file)
+    DrawTexturePro(icons, kCoinIcon, Rectangle{ (float)(x + w - 130), (float)(y + h - 32), 22, 22 }, {0,0}, 0, WHITE);
+    DrawText(TextFormat("%d", inv.money), x + w - 102, y + h - 31, 22, Color{ 255, 220, 90, 255 });
 }
 
 void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv, const Texture2D* ftex) const {
@@ -189,7 +193,7 @@ void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv, const Text
             Color ac = (f > 1.15f) ? Color{ 140,230,140,255 }
                      : (f < 0.85f) ? Color{ 230,150,150,255 } : Color{ 200,200,200,255 };
             DrawText(TextFormat("[B] sam.%d   [S] vinde %d @ %d",
-                     fi.seedCost, inv.harvested[i], inv.CurrentSell(i)), x + 40, ry + 19, 14,
+                     (int)(fi.seedCost * inv.SeedMul()), inv.harvested[i], inv.CurrentSell(i)), x + 40, ry + 19, 14,
                      Color{ 190, 215, 190, 255 });
             DrawText(arrow, x + w - 26, ry + 8, 18, ac);
         }

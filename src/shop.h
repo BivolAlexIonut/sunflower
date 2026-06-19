@@ -5,11 +5,13 @@
 
 class Inventory;
 class Player;
+class Memories;
 
 class Shop {
 public:
     void HandleInput(Inventory& inv, Player& player);
-    void Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& icons) const;
+    void Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& icons,
+              const Memories& mem) const;
 
     bool BlocksGameplay() const { return open; }
 
@@ -18,7 +20,7 @@ public:
     void Deserialize(std::istream&);
 
     static constexpr int SkinCount = 5;
-    static constexpr int TabCount = 5;
+    static constexpr int TabCount = 6;
 
 private:
     bool open = false;

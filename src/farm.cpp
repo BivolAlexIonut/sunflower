@@ -6,26 +6,43 @@
 #include <ostream>
 #include <istream>
 
-// Tile de pământ săpat din FG_Grounds.png (16x16).
-static const Rectangle kSoil = { 176, 80, 16, 16 };
+// Tile interior de sol arat din FarmLand (16x16, plin edge-to-edge).
+static const Rectangle kSoil = { 32, 16, 16, 16 };
+
+// shader care desenează textura în alb-negru (plante moarte)
+static const char* kGrayFrag =
+    "#version 330\n"
+    "in vec2 fragTexCoord; in vec4 fragColor;\n"
+    "uniform sampler2D texture0; uniform vec4 colDiffuse;\n"
+    "out vec4 finalColor;\n"
+    "void main(){\n"
+    "  vec4 c = texture(texture0, fragTexCoord)*colDiffuse*fragColor;\n"
+    "  float g = dot(c.rgb, vec3(0.299,0.587,0.114));\n"
+    "  finalColor = vec4(vec3(g), c.a);\n"
+    "}\n";
 
 Farm::Farm() { cells.resize(TileMap::Width * TileMap::Height); }
 
 void Farm::Load() {
-    soilAtlas = LoadTexture("sprites/Tilesets/FG_Grounds.png");
+    soilAtlas = LoadTexture("sprites/NewAssets/Tiles/FarmLand/FarmLand_Tile.png");
+    soilWet   = LoadTexture("sprites/NewAssets/Tiles/FarmLand/FarmLand_Wet_Tile.png");
     ftex[0] = LoadTexture("sprites/Objects/FG_Grass_Summer.png");
     ftex[1] = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
     ftex[2] = LoadTexture("sprites/Objects/FG_Grass_Fall.png");
     ftex[3] = LoadTexture("sprites/Plants&supplies/Plants.png");
+    grayShader = LoadShaderFromMemory(nullptr, kGrayFrag);
 }
 void Farm::Unload() {
     UnloadTexture(soilAtlas);
+    UnloadTexture(soilWet);
     for (int i = 0; i < 4; i++) UnloadTexture(ftex[i]);
+    UnloadShader(grayShader);
 }
 
 int Farm::CropCount() const {
     int n = 0;
-    for (const auto& c : cells) if (c.plot == Plot::Crop && c.big != 2) n++;  // copacul = 1 plantă
+    for (const auto& c : cells)
+        if (c.plot == Plot::Crop && c.big != 2 && !c.dead) n++;  // copacul = 1 plantă; moartele nu se numără
     return n;
 }
 
@@ -42,19 +59,41 @@ bool Farm::InBounds(int tx, int ty) const {
     return tx >= 0 && ty >= 0 && tx < TileMap::Width && ty < TileMap::Height;
 }
 
+void Farm::Reset() {
+    for (auto& c : cells) c = Cell{};
+}
+
+// c.growth = secunde reale acumulate în stadiul curent; prag = growTime * growMul.
+int Farm::GardenRating() const {
+    double rating = 0.0;
+    for (const auto& c : cells) {
+        if (c.plot != Plot::Crop || c.big == 2 || c.dead) continue;
+        int rarity = c.flower + 1;                                  // index mai mare = mai rar
+        float stageTime = FLOWERS[c.flower].growTime * growMul;     // timp/stadiu
+        double invested = c.stage * (double)stageTime + c.growth;   // secunde investite
+        rating += rarity * invested / 60.0;                         // în minute
+    }
+    return (int)rating;
+}
+
 void Farm::Update(float dt, bool autoWater, bool fastGrow) {
-    float gmul = fastGrow ? 2.0f : 1.0f;   // power-up creștere rapidă
+    float rate = fastGrow ? 2.0f : 1.0f;   // power-up creștere rapidă
     for (auto& c : cells) {
         if (c.big == 2) continue;   // celulele acoperite de un copac 2x2 nu cresc singure
-        if (c.plot == Plot::Crop && c.stage < MatureStage) {
-            if (autoWater) c.watered = true;   // power-up auto-udare
+        if (c.plot == Plot::Crop && c.stage < MatureStage && !c.dead) {
+            if (autoWater) { c.watered = true; c.dryTime = 0.0f; }   // power-up auto-udare
             if (c.watered) {
-                c.growth += dt * gmul;
-                if (c.growth >= FLOWERS[c.flower].growTime) {
+                c.growth += dt * rate;
+                if (c.growth >= FLOWERS[c.flower].growTime * growMul) {
                     c.growth = 0.0f;
                     c.stage++;
                     c.watered = false;
+                    c.dryTime = 0.0f;   // noul stadiu are nevoie de apă: pornește răbdarea
                 }
+            } else {
+                // are nevoie de apă: dacă o neglijezi prea mult, moare
+                c.dryTime += dt;
+                if (c.dryTime >= DryDeathSeconds) c.dead = true;
             }
         }
     }
@@ -97,8 +136,8 @@ void Farm::TargetArea(int tx, int ty, const Inventory& inv, int& ax, int& ay, in
     ax = tx; ay = ty; size = 1;
 }
 
-void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
-    if (!InBounds(tx, ty)) return;
+int Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
+    if (!InBounds(tx, ty)) return 0;
 
     // dacă am dat click pe o celulă acoperită de un copac 2x2, redirecționăm spre ancoră
     int rax, ray;
@@ -108,9 +147,9 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
 
     switch (c.plot) {
         case Plot::Grass:
-            player.StartAction(Action::Hoe);     // sapă
-            c.plot = Plot::Soil;
-            break;
+            // NU se sapă din click instant — săpatul se face DOAR ținând apăsat (hold-to-dig)
+            // și DOAR pe iarbă lucrabilă (gardul/piatra/drumul nu se sapă). Vezi main.cpp.
+            return 0;
         case Plot::Soil: {
             int f = inv.selectedSeed;
             if (inv.seeds[f] <= 0) break;
@@ -135,9 +174,23 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 inv.AddXP(3);
                 inv.EnsureValidSeed();
             }
-            break;
+            return 1;   // plantat
         }
         case Plot::Crop:
+            if (c.dead) {                            // planta moartă: o smulgi, pierzi XP, replantezi
+                int pen = 8 + FLOWERS[c.flower].sellPrice / 50;
+                inv.LoseXP(pen);
+                player.StartAction(Action::Hoe);
+                if (FLOWERS[c.flower].isTree && c.big == 1) {
+                    int ax = tx, ay = ty;
+                    for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++) {
+                        cells[Idx(ax+ox, ay+oy)] = Cell{}; cells[Idx(ax+ox, ay+oy)].plot = Plot::Soil;
+                    }
+                } else {
+                    c = Cell{}; c.plot = Plot::Soil;
+                }
+                return 6;   // recoltat moartă (praf, fără monede)
+            }
             if (c.stage >= MatureStage) {            // matură
                 bool tree = FLOWERS[c.flower].isTree;
                 if (tree) {
@@ -159,15 +212,52 @@ void Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
                 } else {
                     c.plot = Plot::Soil; c.stage = 0; c.growth = 0; c.watered = false; c.big = 0;
                 }
-            } else if (!c.watered) {                  // udă → pornește creșterea spre stadiul următor
+                return tree ? 4 : 3;   // recoltat
+            } else if (!c.watered) {                  // udă → pornește creșterea + oprește setea
                 player.StartAction(Action::Watercan);
-                c.watered = true;
+                c.watered = true; c.dryTime = 0.0f;
                 if (c.big == 1)                       // copac 2x2 → udă toate cele 4 pătrate
-                    for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++)
+                    for (int oy = 0; oy < 2; oy++) for (int ox = 0; ox < 2; ox++) {
                         cells[Idx(tx+ox, ty+oy)].watered = true;
+                        cells[Idx(tx+ox, ty+oy)].dryTime = 0.0f;
+                    }
+                return 2;   // udat
             }
             break;
     }
+    return 0;
+}
+
+int Farm::ApplyOffline(double seconds, int& diedCount) {
+    diedCount = 0;
+    if (seconds <= 0) return 0;
+    int stagesGrown = 0;
+    for (auto& c : cells) {
+        if (c.big == 2) continue;                 // celulele acoperite de copac nu cresc singure
+        if (c.plot != Plot::Crop || c.dead) continue;
+        double t = seconds;
+        // avansează cât e udată: după ce termină stadiul, are nevoie de apă din nou
+        while (c.stage < MatureStage && c.watered && t > 0) {
+            float need = FLOWERS[c.flower].growTime * growMul - c.growth;
+            if (t >= need) {
+                t -= need;
+                c.growth = 0.0f;
+                c.stage++;
+                c.watered = false;
+                c.dryTime = 0.0f;
+                stagesGrown++;
+            } else {
+                c.growth += (float)t;
+                t = 0;
+            }
+        }
+        // timpul rămas, cât e neudată (și încă nu e matură): acumulează sete; prea mult → moare
+        if (c.stage < MatureStage && !c.watered && t > 0) {
+            c.dryTime += (float)t;
+            if (c.dryTime >= DryDeathSeconds) { c.dead = true; diedCount++; }
+        }
+    }
+    return stagesGrown;
 }
 
 void Farm::Serialize(std::ostream& o) const {
@@ -178,7 +268,8 @@ void Farm::Serialize(std::ostream& o) const {
         const Cell& c = cells[i];
         if (c.plot == Plot::Grass) continue;
         o << i << " " << (int)c.plot << " " << c.flower << " " << c.stage << " "
-          << c.growth << " " << (c.watered ? 1 : 0) << " " << c.big << "\n";
+          << c.growth << " " << (c.watered ? 1 : 0) << " " << c.big << " "
+          << c.dryTime << " " << (c.dead ? 1 : 0) << "\n";
     }
 }
 
@@ -186,10 +277,10 @@ void Farm::Deserialize(std::istream& in) {
     for (auto& c : cells) c = Cell{};
     int n; in >> n;
     for (int k = 0; k < n; k++) {
-        int i, p, fl, st, wt, bg; float g;
-        in >> i >> p >> fl >> st >> g >> wt >> bg;
+        int i, p, fl, st, wt, bg, dd; float g, dry;
+        in >> i >> p >> fl >> st >> g >> wt >> bg >> dry >> dd;
         if (i >= 0 && i < (int)cells.size())
-            cells[i] = Cell{ (Plot)p, fl, st, g, wt != 0, bg };
+            cells[i] = Cell{ (Plot)p, fl, st, g, wt != 0, bg, dry, dd != 0 };
     }
 }
 
@@ -203,44 +294,63 @@ void Farm::DrawGround(const Camera2D& cam) const {
     if (x1 > TileMap::Width)  x1 = TileMap::Width;
     if (y1 > TileMap::Height) y1 = TileMap::Height;
 
-    // pământul săpat (mai închis = udat)
+    // solul arat — varianta udă (mai închisă) când cultura e udată
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
         if (c.plot == Plot::Soil || c.plot == Plot::Crop) {
-            DrawTexturePro(soilAtlas, kSoil,
+            bool wet = (c.plot == Plot::Crop && c.watered);
+            DrawTexturePro(wet ? soilWet : soilAtlas, kSoil,
                 Rectangle{ (float)(x*TS), (float)(y*TS), (float)TS, (float)TS }, {0,0}, 0, WHITE);
-            if (c.plot == Plot::Crop && c.watered)
-                DrawRectangle(x*TS, y*TS, TS, TS, Color{ 20, 30, 80, 70 });   // pământ ud
         }
     }
     // plantele (bottom-anchored) — textură, rect și scală după tipul plantei
     for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
         const Cell& c = cells[Idx(x, y)];
         if (c.plot != Plot::Crop || c.big == 2) continue;   // sclavii 2x2 nu se desenează singuri
-        if (c.stage > 0) {
+        // planta moartă apare chiar dacă murise din stadiul 0 (folosim măcar stadiul 1)
+        int dispStage = (c.dead && c.stage < 1) ? 1 : c.stage;
+        if (dispStage > 0) {
             const FlowerInfo& fi = FLOWERS[c.flower];
-            Rectangle src = (c.stage == 1) ? fi.r1 : fi.r2;
+            Rectangle src = (dispStage == 1) ? fi.r1 : fi.r2;
             // copacul 2x2 = centrat în cele 4 pătrate, dimensiune potrivită (nu enorm)
             float extra = (c.big == 1) ? 1.3f : 1.0f;
             float cx = (c.big == 1) ? (x + 1.0f) * TS : x * TS + TS / 2.0f;
             float by = (c.big == 1) ? (y + 1.85f) * TS : (y + 1.0f) * TS;   // baza spre centrul 2x2
             float w = src.width * fi.scale * extra, h = src.height * fi.scale * extra;
+            if (c.dead) BeginShaderMode(grayShader);          // alb-negru
             DrawTexturePro(ftex[fi.tex], src,
-                Rectangle{ cx - w/2.0f, by - h, w, h }, {0,0}, 0, WHITE);
+                Rectangle{ cx - w/2.0f, by - h, w, h }, {0,0}, 0, c.dead ? Color{ 200,200,200,255 } : WHITE);
+            if (c.dead) EndShaderMode();
+        }
+        if (c.dead) {
+            // marcaj roșu "moartă" deasupra
+            float dx = x*TS + ((c.big == 1) ? TS : TS/2.0f);
+            float dy = (float)(y*TS - 10);
+            DrawLine((int)dx-5,(int)dy-5,(int)dx+5,(int)dy+5, Color{ 220,60,60,255 });
+            DrawLine((int)dx-5,(int)dy+5,(int)dx+5,(int)dy-5, Color{ 220,60,60,255 });
+            continue;
         }
         if (c.stage < MatureStage) {
             float cxOff = (c.big == 1) ? TS : TS/2.0f;          // centrat peste 2x2 dacă e copac
             float dx = x*TS + cxOff;
             if (!c.watered) {
-                // picătură albastră: are nevoie de apă acum
+                // are nevoie de apă; picătura devine roșie/portocalie când planta e pe moarte
+                float frac = c.dryTime / DryDeathSeconds;       // 0..1 spre moarte
+                Color drop = (frac > 0.5f) ? Color{ 240, 90, 60, 255 } : Color{ 70, 150, 240, 255 };
                 float bob = sinf(GetTime() * 3.0f + x + y) * 2.0f;
                 float dy = y*TS - 6 + bob;
-                DrawCircle((int)dx, (int)dy, 5, Color{ 70, 150, 240, 255 });
-                DrawTriangle({ dx-5, dy-1 }, { dx+5, dy-1 }, { dx, dy-9 }, Color{ 70, 150, 240, 255 });
-                DrawCircle((int)dx-1, (int)dy-1, 2, Color{ 200, 230, 255, 255 });
+                DrawCircle((int)dx, (int)dy, 5, drop);
+                DrawTriangle({ dx-5, dy-1 }, { dx+5, dy-1 }, { dx, dy-9 }, drop);
+                DrawCircle((int)dx-1, (int)dy-1, 2, Color{ 255, 245, 230, 255 });
+                if (frac > 0.5f) {   // avertizare: cât mai are până moare (ore)
+                    int hrs = (int)ceilf((DryDeathSeconds - c.dryTime) / 3600.0f);
+                    const char* w = TextFormat("moare in %dh", hrs);
+                    int tw = MeasureText(w, 10);
+                    DrawText(w, (int)dx - tw/2, y*TS - 24, 10, Color{ 250, 120, 90, 255 });
+                }
             } else {
                 // timer: cât mai durează până trebuie udată din nou (mm:ss)
-                int rem = (int)ceilf(FLOWERS[c.flower].growTime - c.growth);
+                int rem = (int)ceilf(FLOWERS[c.flower].growTime * growMul - c.growth);
                 if (rem < 0) rem = 0;
                 const char* t = TextFormat("%d:%02d", rem / 60, rem % 60);
                 int tw = MeasureText(t, 10);

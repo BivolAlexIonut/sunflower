@@ -59,13 +59,29 @@ public:
     float PriceFactor(int flower) const;  // 0.6..1.6 în funcție de zi
     int   CurrentSell(int flower) const;  // preț de vânzare curent (cu fluctuație)
 
+    // dificultate aleasă la "Joc nou": 0 = Gradinar (blând), 1 = Fermier (normal), 2 = Supravietuitor (realist)
+    int difficulty = 1;
+    static const char* DifficultyName(int d);
+    static const char* DifficultyDesc(int d);
+    static int StartMoneyFor(int d);
+    const char* DifficultyName() const { return DifficultyName(difficulty); }
+    float GrowMul() const;     // cât de repede cresc plantele (timp * mul)
+    float SellMul() const;     // cât de mult valorează florile la vânzare
+    float SeedMul() const;     // cât costă semințele
+    int   StartMoney() const;  // bani la început
+
+    // timp total petrecut în joc (secunde) — pentru statistici
+    double playSeconds = 0.0;
+
     // progresie XP / nivel
     int xp = 0;
     int level = 1;
     int levelUpTimer = 0;          // runtime: cât mai afișăm popup-ul de level-up
+    bool levelUpPending = false;   // runtime: trebuie afișat modalul de level-up
     std::string levelUpMsg;        // runtime
     int XPForNext() const { return 80 + level * 70; }   // XP necesar pentru nivelul următor
     void AddXP(int amount);               // adaugă XP, urcă în nivel, deblochează flori
+    void LoseXP(int amount) { xp -= amount; if (xp < 0) xp = 0; }   // penalizare (nu coboară nivelul)
     void EnsureValidSeed();               // selectează o sămânță pe care o ai (dacă cea curentă e 0)
     void DrawLevel(int plantedCount) const;
 
