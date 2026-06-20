@@ -52,9 +52,11 @@ public:
     int CropCount() const;   // câte plante sunt în pământ (pentru XP/level)
     bool Diggable(int tx, int ty) const;   // celulă de iarbă (se poate săpa)
     void Till(int tx, int ty);             // sapă: iarbă -> pământ
+    void WaterArea(int cx, int cy, int radius);   // udă toate culturile dintr-o rază (upgrade)
 
     void SetGrowMul(float m) { growMul = (m > 0.01f) ? m : 1.0f; }   // dificultate
     void Reset();                          // joc nou: golește toate celulele
+    void DebugPlant(int tx, int ty, int flower, int stage);   // doar pentru screenshot-uri
     int  GardenRating() const;             // nr.flori * raritate * timp investit
 
     static constexpr int MatureStage = 2;
@@ -67,7 +69,7 @@ private:
     bool Tree2x2Soil(int tx, int ty, int& ax, int& ay) const;    // există un 2x2 de pământ care conține (tx,ty)
     Texture2D soilAtlas{};   // FarmLand_Tile (sol arat uscat)
     Texture2D soilWet{};     // FarmLand_Wet_Tile (sol arat udat)
-    Texture2D ftex[4]{};     // 0 vară, 1 iarnă, 2 toamnă, 3 Plants
+    Texture2D ftex[5]{};     // 0 vară, 1 iarnă, 2 toamnă, 3 Plants, 4 Crops (legume)
 
     int Idx(int tx, int ty) const;
     bool InBounds(int tx, int ty) const;

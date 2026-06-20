@@ -30,12 +30,13 @@ void Farm::Load() {
     ftex[1] = LoadTexture("sprites/Objects/FG_Grass_Winter.png");
     ftex[2] = LoadTexture("sprites/Objects/FG_Grass_Fall.png");
     ftex[3] = LoadTexture("sprites/Plants&supplies/Plants.png");
+    ftex[4] = LoadTexture("sprites/NewAssets/Crops/Crops.png");
     grayShader = LoadShaderFromMemory(nullptr, kGrayFrag);
 }
 void Farm::Unload() {
     UnloadTexture(soilAtlas);
     UnloadTexture(soilWet);
-    for (int i = 0; i < 4; i++) UnloadTexture(ftex[i]);
+    for (int i = 0; i < 5; i++) UnloadTexture(ftex[i]);
     UnloadShader(grayShader);
 }
 
@@ -61,6 +62,25 @@ bool Farm::InBounds(int tx, int ty) const {
 
 void Farm::Reset() {
     for (auto& c : cells) c = Cell{};
+}
+
+void Farm::WaterArea(int cx, int cy, int radius) {
+    for (int dy = -radius; dy <= radius; dy++)
+        for (int dx = -radius; dx <= radius; dx++) {
+            int tx = cx + dx, ty = cy + dy;
+            if (!InBounds(tx, ty)) continue;
+            Cell& c = cells[Idx(tx, ty)];
+            if (c.plot == Plot::Crop && !c.dead && c.stage < MatureStage && !c.watered) {
+                c.watered = true; c.dryTime = 0.0f;
+            }
+        }
+}
+
+void Farm::DebugPlant(int tx, int ty, int flower, int stage) {
+    if (!InBounds(tx, ty)) return;
+    Cell& c = cells[Idx(tx, ty)];
+    c.plot = Plot::Crop; c.flower = flower; c.stage = stage;
+    c.growth = 0; c.watered = true; c.dead = false; c.big = 0;
 }
 
 // c.growth = secunde reale acumulate în stadiul curent; prag = growTime * growMul.
@@ -130,7 +150,8 @@ bool Farm::Tree2x2Soil(int tx, int ty, int& ax, int& ay) const {
 void Farm::TargetArea(int tx, int ty, const Inventory& inv, int& ax, int& ay, int& size) const {
     int bx, by;
     if (TreeAnchor(tx, ty, bx, by)) { ax = bx; ay = by; size = 2; return; }   // copac existent
-    if (FLOWERS[inv.selectedSeed].isTree && Tree2x2Soil(tx, ty, bx, by)) {
+    if (inv.selectedSeed >= 0 && inv.selectedSeed < (int)Flower::COUNT &&
+        FLOWERS[inv.selectedSeed].isTree && Tree2x2Soil(tx, ty, bx, by)) {
         ax = bx; ay = by; size = 2; return;                                    // pregătit de plantat copac
     }
     ax = tx; ay = ty; size = 1;
@@ -152,7 +173,7 @@ int Farm::Interact(int tx, int ty, Inventory& inv, Player& player) {
             return 0;
         case Plot::Soil: {
             int f = inv.selectedSeed;
-            if (inv.seeds[f] <= 0) break;
+            if (f < 0 || f >= (int)Flower::COUNT || inv.seeds[f] <= 0) break;
 
             if (FLOWERS[f].isTree) {
                 // copac → are nevoie de 2x2 săpat

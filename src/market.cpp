@@ -62,7 +62,7 @@ bool Market::Update(float dt, Player& player, Inventory& inv) {
             if (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_B)) {
                 int f = list[buyRow];
                 int price = (int)(FLOWERS[f].seedCost * 0.85f * inv.SeedMul());   // la market e mai ieftin
-                if (inv.money >= price) { inv.money -= price; inv.seeds[f]++; inv.selectedSeed = f; }
+                if (inv.money >= price) { inv.money -= price; inv.seeds[f]++; inv.SelectFlower(f); }
             }
         }
         if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)) buyOpen = false;

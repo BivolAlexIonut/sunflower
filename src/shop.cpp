@@ -7,7 +7,7 @@
 #include <istream>
 
 static const char* kTabNames[Shop::TabCount] =
-    { "MAGAZIN", "UNELTE", "CONSTR.", "SKIN-URI", "AJUTOR", "AMINTIRI" };
+    { "MAGAZIN", "UNELTE", "CONSTR.", "SKIN-URI", "AJUTOR", "AMINTIRI", "ANIMALE" };
 
 static const int kAxeCost = 80;
 static const int kPickaxeCost = 220;
@@ -36,6 +36,7 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
     if (IsKeyPressed(KEY_FOUR))  { tab = 3; row = 0; }
     if (IsKeyPressed(KEY_FIVE))  { tab = 4; row = 0; }
     if (IsKeyPressed(KEY_SIX))   { tab = 5; row = 0; }
+    if (IsKeyPressed(KEY_SEVEN)) { tab = 6; row = 0; }
 
     if (tab == 0) {                                   // MAGAZIN (flori)
         int n = (int)Flower::COUNT;
@@ -51,7 +52,7 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
         if (IsKeyPressed(KEY_B) && inv.unlocked[row] && inv.money >= seedCost) {
             inv.money -= seedCost;
             inv.seeds[row]++;
-            inv.selectedSeed = row;        // o selectez automat → apare în bara de jos
+            inv.SelectFlower(row);         // o pun în hotbar și o selectez
         }
         if (IsKeyPressed(KEY_S) && inv.harvested[row] > 0) {
             inv.money += inv.harvested[row] * inv.CurrentSell(row);   // preț fluctuant
@@ -65,16 +66,30 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             inv.money += inv.crystals * Inventory::CrystalPrice; inv.crystals = 0;
         }
     }
-    else if (tab == 1) {                              // UNELTE
-        if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % 2;
-        if (IsKeyPressed(KEY_UP))   row = (row + 1) % 2;
+    else if (tab == 1) {                              // UNELTE + UPGRADE-uri
+        int n = Inventory::UpgCount;
+        if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % n;
+        if (IsKeyPressed(KEY_UP))   row = (row + n - 1) % n;
         if (IsKeyPressed(KEY_B)) {
-            if (row == 0 && !inv.hasAxe && inv.money >= kAxeCost) {
-                inv.money -= kAxeCost; inv.hasAxe = true;
+            int t = row;
+            if (t == 3 && !inv.hasAxe) {                       // întâi deblochezi toporul
+                if (inv.money >= kAxeCost) { inv.money -= kAxeCost; inv.hasAxe = true; }
+            } else if (t == 4 && !inv.hasPickaxe) {            // întâi deblochezi târnăcopul
+                if (inv.money >= kPickaxeCost) { inv.money -= kPickaxeCost; inv.hasPickaxe = true; }
+            } else {                                           // upgrade nivel următor
+                bool toolOk = !((t == 3 && !inv.hasAxe) || (t == 4 && !inv.hasPickaxe));
+                int cost = inv.UpgCost(t);
+                if (toolOk && cost > 0 && inv.money >= cost) { inv.money -= cost; inv.upg[t]++; }
             }
-            if (row == 1 && !inv.hasPickaxe && inv.money >= kPickaxeCost) {
-                inv.money -= kPickaxeCost; inv.hasPickaxe = true;
-            }
+        }
+    }
+    else if (tab == 6) {                              // ANIMALE (produc bani)
+        int n = Inventory::AnimalCount;
+        if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % n;
+        if (IsKeyPressed(KEY_UP))   row = (row + n - 1) % n;
+        if (IsKeyPressed(KEY_B) && animalsUnlocked) {
+            int cost = Inventory::AnimalCost(row);
+            if (inv.money >= cost) { inv.money -= cost; inv.animals[row]++; }
         }
     }
     else if (tab == 2) {                              // CONSTRUIESTE (drum / piatră)
@@ -137,8 +152,8 @@ void Shop::DrawTabs(int x, int y, int w) const {
         bool sel = (i == tab);
         DrawRectangle(tx, y, tw, 40, sel ? Color{ 70, 55, 35, 255 } : Color{ 30, 22, 16, 255 });
         Color tc = sel ? Color{ 255, 220, 90, 255 } : Color{ 150, 140, 120, 255 };
-        int lw = MeasureText(kTabNames[i], 20);
-        DrawText(kTabNames[i], tx + tw / 2 - lw / 2, y + 10, 20, tc);
+        int lw = MeasureText(kTabNames[i], 15);
+        DrawText(kTabNames[i], tx + tw / 2 - lw / 2, y + 13, 15, tc);
     }
     DrawRectangle(x, y + 40, w, 3, Color{ 255, 220, 90, 255 });
 }
@@ -152,13 +167,14 @@ void Shop::Draw(const Inventory& inv, const Texture2D* ftex, const Texture2D& ic
 
     int cx = x + 20, cy = y + 56, cw = w - 40, ch = h - 76;
     if (tab == 0) DrawShop(cx, cy, cw, ch, inv, ftex);
-    if (tab == 1) DrawTools(cx, cy, cw, ch, inv);
+    if (tab == 1) DrawUpgrades(cx, cy, cw, ch, inv);
     if (tab == 2) DrawBuild(cx, cy, cw, ch, inv);
     if (tab == 3) DrawSkins(cx, cy, cw, ch, inv);
     if (tab == 4) DrawHelp(cx, cy, cw, ch);
     if (tab == 5) mem.DrawAlbum(cx, cy, cw, ch, inv.level);
+    if (tab == 6) DrawAnimals(cx, cy, cw, ch, inv);
 
-    DrawText("1-6 sau Stanga/Dreapta: fila  |  Sus/Jos: alege  |  TAB/ESC: inchide",
+    DrawText("1-7 sau Stanga/Dreapta: fila  |  Sus/Jos: alege  |  TAB/ESC: inchide",
              x + 20, y + h - 26, 14, Color{ 170, 170, 170, 255 });
     // bani (jos-dreapta, separat de file)
     DrawTexturePro(icons, kCoinIcon, Rectangle{ (float)(x + w - 130), (float)(y + h - 32), 22, 22 }, {0,0}, 0, WHITE);
@@ -207,25 +223,50 @@ void Shop::DrawShop(int x, int y, int w, int h, const Inventory& inv, const Text
              x, ry, 15, Color{ 210, 190, 150, 255 });
 }
 
-void Shop::DrawTools(int x, int y, int w, int h, const Inventory& inv) const {
-    DrawText("Deblocheaza unelte ca sa folosesti mai mult din lume.",
-             x, y, 15, Color{ 190, 200, 190, 255 });
+void Shop::DrawUpgrades(int x, int y, int w, int h, const Inventory& inv) const {
+    (void)h;
+    DrawText("Imbunatateste-ti uneltele si abilitatile. [B] cumpara nivelul urmator.",
+             x, y, 14, Color{ 190, 200, 190, 255 });
+    for (int t = 0; t < Inventory::UpgCount; t++) {
+        int ry = y + 28 + t * 58;
+        if (t == row) DrawRectangle(x - 6, ry - 6, w + 12, 52, Color{ 255, 255, 255, 26 });
+        DrawText(Inventory::UpgName(t), x, ry, 20, WHITE);
+        DrawText(Inventory::UpgDesc(t), x, ry + 24, 14, Color{ 190, 200, 190, 255 });
 
-    struct Row { const char* name; const char* desc; bool owned; int cost; };
-    Row rows[2] = {
-        { "Topor",     "Taie copacii -> Lemn",        inv.hasAxe,     kAxeCost },
-        { "Tarnacop",  "Sparge cristale -> Cristale", inv.hasPickaxe, kPickaxeCost },
-    };
-    for (int i = 0; i < 2; i++) {
-        int ry = y + 32 + i * 70;
-        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 62, Color{ 255, 255, 255, 26 });
-        DrawText(rows[i].name, x, ry, 22, WHITE);
-        DrawText(rows[i].desc, x, ry + 26, 16, Color{ 190, 200, 190, 255 });
-        if (rows[i].owned)
-            DrawText("[CUMPARAT]", x + 320, ry + 4, 18, Color{ 140, 230, 140, 255 });
-        else
-            DrawText(TextFormat("[B] Cumpara: %d", rows[i].cost), x + 320, ry + 4, 18,
-                     Color{ 230, 200, 140, 255 });
+        // bară de niveluri (puncte)
+        for (int lv = 0; lv < Inventory::UpgMax; lv++)
+            DrawRectangle(x + 250 + lv * 16, ry + 2, 12, 12,
+                          lv < inv.upg[t] ? Color{ 120,210,120,255 } : Color{ 70,70,60,255 });
+
+        // starea / acțiunea
+        bool needUnlock = (t == 3 && !inv.hasAxe) || (t == 4 && !inv.hasPickaxe);
+        if (needUnlock) {
+            int cost = (t == 3) ? kAxeCost : kPickaxeCost;
+            DrawText(TextFormat("[B] Deblocheaza: %d", cost), x + 330, ry + 4, 17, Color{ 230,200,140,255 });
+        } else if (inv.upg[t] >= Inventory::UpgMax) {
+            DrawText("MAXIM", x + 330, ry + 4, 18, Color{ 140, 230, 140, 255 });
+        } else {
+            DrawText(TextFormat("[B] +1: %d", inv.UpgCost(t)), x + 330, ry + 4, 17, Color{ 230,200,140,255 });
+        }
+    }
+}
+
+void Shop::DrawAnimals(int x, int y, int w, int h, const Inventory& inv) const {
+    (void)h;
+    DrawText(TextFormat("Animalele aduc bani singure, chiar si cat esti plecat. Venit acum: %.0f bani/min",
+             inv.AnimalIncomePerMin()), x, y, 14, Color{ 200, 220, 190, 255 });
+    if (!animalsUnlocked)
+        DrawText("Mai intai cumpara TARCUL de animale din modul harta (tasta L)!",
+                 x, y + 18, 15, Color{ 255, 150, 120, 255 });
+    for (int i = 0; i < Inventory::AnimalCount; i++) {
+        int ry = y + 30 + i * 76;
+        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 68, Color{ 255, 255, 255, 26 });
+        DrawText(Inventory::AnimalName(i), x, ry, 22, WHITE);
+        DrawText(TextFormat("Produce %.0f bani/min", Inventory::AnimalIncome(i)),
+                 x, ry + 26, 15, Color{ 190, 200, 190, 255 });
+        DrawText(TextFormat("ai: %d", inv.animals[i]), x + w - 80, ry, 18, Color{ 200, 220, 200, 255 });
+        DrawText(TextFormat("[B] Cumpara: %d", Inventory::AnimalCost(i)), x + 300, ry + 4, 18,
+                 Color{ 230, 200, 140, 255 });
     }
 }
 

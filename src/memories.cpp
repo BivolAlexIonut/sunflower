@@ -13,7 +13,7 @@ static const Milestone kMs[Memories::Count] = {
       "Cine si-ar fi imaginat ca acolo o sa-mi gasesc cea mai frumoasa floare? De atunci a inceput totul.",
       Color{ 235, 90, 110, 255 } },
 
-    { "Primul sarut", "Banca din parc", 4,  15, 25,
+    { "Primul sarut", "Banca din parc", 4,  10, 20,
       "Pe banca asta, in parc, te-am sarutat prima oara. Mi s-a oprit inima o secunda si lumea a tacut. "
       "As ramane in clipa aceea la nesfarsit.",
       Color{ 255, 140, 190, 255 } },
@@ -28,10 +28,30 @@ static const Milestone kMs[Memories::Count] = {
       "de toate, pentru ca tu esti soarele dupa care ma intorc mereu.",
       Color{ 255, 205, 90, 255 } },
 
-    { "Prima vacanta", "Iasi", 10,  8, 24,
+    { "Prima vacanta", "Iasi", 10,  4, 18,
       "Prima noastra vacanta, la Iasi. Primul drum impreuna, dintr-o viata intreaga de drumuri care vor urma. "
       "Oriunde, oricand, atata timp cat esti tu langa mine.",
       Color{ 110, 210, 200, 255 } },
+
+    { "Clatite impreuna", "Prima data acasa la mine", 12,  60, 12,
+      "Prima data cand ai venit la mine acasa am facut clatite impreuna. Faina peste tot, rasete si tu langa mine "
+      "in bucatarie - atunci am stiut ca asa vreau sa arate fiecare dimineata.",
+      Color{ 245, 200, 150, 255 } },
+
+    { "Zece kilometri", "Prima intalnire", 14,  78, 18,
+      "La prima intalnire ne-am plimbat pe jos aproape zece kilometri. Nici nu am simtit drumul - cu tine, "
+      "as merge oricat. Inca merg, si nu ma opresc.",
+      Color{ 150, 220, 140, 255 } },
+
+    { "Un an la distanta", "Tu la Bucuresti", 16,  30, 44,
+      "Un an intreg am stat la distanta, dupa ce ai plecat la Bucuresti. A fost greu, dar nicio departare "
+      "nu a fost mai mare decat cat de mult tineam la tine. Te-am asteptat in fiecare zi.",
+      Color{ 120, 160, 230, 255 } },
+
+    { "Ne-am mutat impreuna", "Acasa, in sfarsit", 18,  66, 44,
+      "Dupa un an am venit si eu, si ne-am mutat impreuna. Prima noastra casa. De atunci, oriunde esti tu "
+      "e acasa pentru mine. Asta a fost mereu telul - sa ajung aici, langa tine.",
+      Color{ 255, 150, 170, 255 } },
 };
 
 const Milestone& Memories::Get(int i) const { return kMs[i]; }
@@ -179,21 +199,19 @@ void Memories::DrawAlbum(int x, int y, int w, int h, int level) const {
     DrawText(TextFormat("Deblocate: %d/%d", unlockedCnt, Count), x + w - 130, y, 14, Color{ 255,220,90,255 });
 
     for (int i = 0; i < Count; i++) {
-        int ry = y + 30 + i * 78;
+        int ry = y + 26 + i * 42;
         const Milestone& m = kMs[i];
         bool unlocked = Unlocked(i, level);
-        DrawRectangle(x - 6, ry - 6, w + 12, 72, Color{ 0, 0, 0, 60 });
-        DrawHeart((float)x + 18, (float)ry + 24, 14,
+        if (i % 2 == 0) DrawRectangle(x - 6, ry - 4, w + 12, 40, Color{ 0, 0, 0, 50 });
+        DrawHeart((float)x + 16, (float)ry + 16, 12,
                   unlocked ? m.color : Color{ 90, 90, 100, 255 });
         if (unlocked) {
-            DrawText(m.title, x + 46, ry, 20, Color{ 255, 235, 200, 255 });
-            DrawText(m.place, x + 46, ry + 22, 13, m.color);
-            // primele rânduri din bilețel ca teaser (mergi la inima de pe harta pentru tot)
-            WrapText(m.note, x + 46, ry + 40, w - 60, 13, 15, Color{ 200, 200, 190, 255 }, 2);
+            DrawText(m.title, x + 40, ry, 19, Color{ 255, 235, 200, 255 });
+            DrawText(m.place, x + 40, ry + 20, 13, m.color);
         } else {
-            DrawText("? ? ?", x + 46, ry, 20, Color{ 150, 150, 160, 255 });
+            DrawText("? ? ?", x + 40, ry, 19, Color{ 150, 150, 160, 255 });
             DrawText(TextFormat("Se deblocheaza la nivelul %d", m.level),
-                     x + 46, ry + 24, 14, Color{ 170, 150, 120, 255 });
+                     x + 40, ry + 20, 12, Color{ 170, 150, 120, 255 });
         }
     }
 }

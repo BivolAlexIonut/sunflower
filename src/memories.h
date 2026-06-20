@@ -17,7 +17,7 @@ struct Milestone {
 
 class Memories {
 public:
-    static constexpr int Count = 5;
+    static constexpr int Count = 9;
 
     void Update(float dt, int level, Particles& fx);   // detectează deblocări noi (scântei + inimi)
     void Draw(Vector2 playerPos, int level) const;     // markere pe hartă (world-space)

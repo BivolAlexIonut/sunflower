@@ -4,12 +4,12 @@
 #include <iosfwd>
 #include <string>
 
-// Plante de plantat (flori, copaci etc.). Indexate doar prin poziție; COUNT = nr. total.
-enum class Flower { COUNT = 15 };
+// Plante de plantat (flori, copaci, LEGUME). Indexate doar prin poziție; COUNT = nr. total.
+enum class Flower { COUNT = 23 };
 
 // Texturile de plante (indexate de FlowerInfo.tex):
-//  0 = FG_Grass_Summer, 1 = FG_Grass_Winter, 2 = FG_Grass_Fall, 3 = Plants&supplies/Plants
-static constexpr int FlowerTexCount = 4;
+//  0 = FG_Grass_Summer, 1 = FG_Grass_Winter, 2 = FG_Grass_Fall, 3 = Plants, 4 = Crops (legume)
+static constexpr int FlowerTexCount = 5;
 
 struct FlowerInfo {
     const char* name;
@@ -31,7 +31,16 @@ public:
     int seeds[(int)Flower::COUNT]     = { 3 };       // start: 3 semințe albe (restul 0)
     int harvested[(int)Flower::COUNT] = { 0 };
     bool unlocked[(int)Flower::COUNT] = { true };    // doar prima deblocată la start
-    int selectedSeed = 0;
+    int selectedSeed = 0;                            // derivat din hotbar[selectedSlot]
+
+    // hotbar: maxim 6 semințe jos; restul în inventar (tasta I), le muți cu mausul
+    static constexpr int HotbarSize = 6;
+    int hotbar[HotbarSize] = { 0, -1, -1, -1, -1, -1 };   // index floare sau -1 (gol)
+    int selectedSlot = 0;
+    void SyncSelected() { selectedSeed = (selectedSlot >= 0 && selectedSlot < HotbarSize) ? hotbar[selectedSlot] : -1; }
+    void SelectSlot(int s);
+    void SelectFlower(int flower);      // pune floarea în hotbar (slot gol) și o selectează
+    void AddSeedToBag(int flower);      // asigură că floarea e în hotbar dacă e loc
 
     // resurse din lume
     int wood = 0;
@@ -40,6 +49,30 @@ public:
     // unelte deblocabile (la start doar sapă/plantează/udă)
     bool hasAxe = false;
     bool hasPickaxe = false;
+
+    // UPGRADE-uri de personaj/unelte (niveluri 0..UpgMax). 0 Sapa, 1 Stropitoare, 2 Gradinarit,
+    //   3 Topor, 4 Tarnacop, 5 Viteza
+    static constexpr int UpgCount = 6;
+    static constexpr int UpgMax   = 4;
+    int upg[UpgCount] = { 0, 0, 0, 0, 0, 0 };
+    static const char* UpgName(int i);
+    static const char* UpgDesc(int i);
+    int   UpgCost(int i) const;                 // costul nivelului următor (0 dacă e maxat sau blocat)
+    float DigSpeedMul() const { return 1.0f + 0.30f * upg[0]; }   // sapă mai repede
+    int   WaterRadius() const { return upg[1]; }                  // 0 = 1 tile, 1 = 3x3, 2 = 5x5...
+    float GardenMul()   const { return 1.0f - 0.12f * upg[2]; }   // plantele cresc mai repede (<1)
+    int   AxeBonus()    const { return upg[3]; }                  // +daună/+lemn
+    int   PickBonus()   const { return upg[4]; }                  // +daună/+cristale
+    float MoveMul()     const { return 1.0f + 0.12f * upg[5]; }   // mers mai rapid
+
+    // ANIMALE (produc bani pasiv, inclusiv offline). 0 Gaina, 1 Porc, 2 Oaie, 3 Vaca
+    static constexpr int AnimalCount = 4;
+    int animals[AnimalCount] = { 0, 0, 0, 0 };
+    float animalAccum = 0.0f;                   // runtime: bani fracționari acumulați
+    static const char* AnimalName(int i);
+    static int   AnimalCost(int i);             // preț de cumpărare
+    static float AnimalIncome(int i);           // bani/min per animal
+    float AnimalIncomePerMin() const;           // venit total/min
 
     // materiale de construcție (drum / piatră) + ce construiești acum (runtime)
     int roadCount = 0;

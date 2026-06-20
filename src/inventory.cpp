@@ -30,6 +30,17 @@ const FlowerInfo FLOWERS[(int)Flower::COUNT] = {
     { "Floarea-soarelui",600,2200, 300.f, 6000, 3, { 33,405,30,28 }, { 63,388,36,46 }, 1.5f, false },
     { "Copac de mere",   700, 700,1500.f, 4000, 3, { 248,146,56,60 }, { 325,144,55,62 }, 1.0f, true  },
     { "Copac de prune",  900, 950,1500.f, 5000, 3, { 248, 96,58,46 }, { 325, 96,55,46 }, 1.1f, true  },
+    // LEGUME (Crops.png, tex 4) — recolte rapide de fermă: stadiu tânăr (48,y) + matur (80,y)
+    // rândurile sunt la y = 16,48,80,112,144,176,208,240
+    //   name          seed  sell  grow unlock tex  r1(tanar)        r2(matur)        scale tree
+    { "Grau",            5,   18,  40.f,    0, 4, { 48, 16,16,16 }, { 80, 16,16,16 }, 1.7f, false },
+    { "Ridiche",         6,   24,  45.f,   30, 4, { 48,208,16,16 }, { 80,208,16,16 }, 1.7f, false },
+    { "Morcov",          8,   30,  50.f,   40, 4, { 48, 80,16,16 }, { 80, 80,16,16 }, 1.7f, false },
+    { "Rosie",          15,   55,  70.f,  120, 4, { 48, 48,16,16 }, { 80, 48,16,16 }, 1.7f, false },
+    { "Varza",          18,   65,  75.f,  180, 4, { 48,240,16,16 }, { 80,240,16,16 }, 1.7f, false },
+    { "Vanata",         20,   70,  80.f,  200, 4, { 48,112,16,16 }, { 80,112,16,16 }, 1.7f, false },
+    { "Porumb",         25,   90,  95.f,  300, 4, { 48,144,16,16 }, { 80,144,16,16 }, 1.8f, false },
+    { "Dovleac",        35,  150, 130.f,  500, 4, { 48,176,16,16 }, { 80,176,16,16 }, 1.8f, false },
 };
 #undef FBUD
 #undef FBLOOM
@@ -50,6 +61,39 @@ static int ClampDiff(int d) { return (d < 0) ? 0 : (d > 2) ? 2 : d; }
 const char* Inventory::DifficultyName(int d) { return kDiff[ClampDiff(d)].name; }
 const char* Inventory::DifficultyDesc(int d) { return kDiff[ClampDiff(d)].desc; }
 int Inventory::StartMoneyFor(int d) { return kDiff[ClampDiff(d)].money; }
+
+// ---- UPGRADE-uri ----
+struct UpgCfg { const char* name; const char* desc; int baseCost; };
+static const UpgCfg kUpg[Inventory::UpgCount] = {
+    { "Sapa",        "Sapi pamantul mai repede",                 120 },
+    { "Stropitoare", "Uzi o zona mai mare dintr-o data",         150 },
+    { "Gradinarit",  "Plantele cresc mai repede",                250 },
+    { "Topor",       "Tai copacii mai repede, mai mult lemn",    200 },
+    { "Tarnacop",    "Spargi cristalele mai repede, mai multe",  200 },
+    { "Viteza",      "Te misti mai repede",                      180 },
+};
+const char* Inventory::UpgName(int i) { return (i>=0&&i<UpgCount)?kUpg[i].name:""; }
+const char* Inventory::UpgDesc(int i) { return (i>=0&&i<UpgCount)?kUpg[i].desc:""; }
+int Inventory::UpgCost(int i) const {
+    if (i < 0 || i >= UpgCount || upg[i] >= UpgMax) return 0;
+    return kUpg[i].baseCost * (upg[i] + 1);     // crește cu nivelul
+}
+
+// ---- ANIMALE ----
+struct AnimCfg { const char* name; int cost; float income; };   // income = bani/min
+static const AnimCfg kAnim[Inventory::AnimalCount] = {
+    { "Gaina",  120,  3.0f },
+    { "Porc",   350,  8.0f },
+    { "Oaie",   600, 14.0f },
+    { "Vaca",  1400, 30.0f },
+};
+const char* Inventory::AnimalName(int i) { return (i>=0&&i<AnimalCount)?kAnim[i].name:""; }
+int   Inventory::AnimalCost(int i)   { return (i>=0&&i<AnimalCount)?kAnim[i].cost:0; }
+float Inventory::AnimalIncome(int i) { return (i>=0&&i<AnimalCount)?kAnim[i].income:0; }
+float Inventory::AnimalIncomePerMin() const {
+    float t = 0; for (int i = 0; i < AnimalCount; i++) t += animals[i] * kAnim[i].income;
+    return t;
+}
 float Inventory::GrowMul() const { return kDiff[ClampDiff(difficulty)].grow; }
 float Inventory::SellMul() const { return kDiff[ClampDiff(difficulty)].sell; }
 float Inventory::SeedMul() const { return kDiff[ClampDiff(difficulty)].seed; }
@@ -66,6 +110,11 @@ void Inventory::Serialize(std::ostream& o) const {
     for (int i = 0; i < BuffCount; i++) o << buff[i] << " ";
     o << "\n";
     o << difficulty << " " << playSeconds << "\n";
+    for (int i = 0; i < UpgCount; i++) o << upg[i] << " ";
+    for (int i = 0; i < AnimalCount; i++) o << animals[i] << " ";
+    o << "\n";
+    for (int i = 0; i < HotbarSize; i++) o << hotbar[i] << " ";
+    o << selectedSlot << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -79,6 +128,11 @@ void Inventory::Deserialize(std::istream& in) {
     in >> roadCount >> stoneCount;
     for (int i = 0; i < BuffCount; i++) in >> buff[i];
     in >> difficulty >> playSeconds;
+    for (int i = 0; i < UpgCount; i++) in >> upg[i];
+    for (int i = 0; i < AnimalCount; i++) in >> animals[i];
+    for (int i = 0; i < HotbarSize; i++) in >> hotbar[i];
+    in >> selectedSlot;
+    SyncSelected();
 }
 
 void Inventory::TickTime(float dt) {
@@ -86,6 +140,9 @@ void Inventory::TickTime(float dt) {
     if (dayTimer >= DaySeconds) { dayTimer -= DaySeconds; day++; }
     if (levelUpTimer > 0) levelUpTimer--;
     playSeconds += dt;
+    // venit pasiv de la animale
+    animalAccum += AnimalIncomePerMin() / 60.0f * dt;
+    if (animalAccum >= 1.0f) { int add = (int)animalAccum; money += add; animalAccum -= add; }
 }
 
 float Inventory::PriceFactor(int flower) const {
@@ -100,18 +157,38 @@ int Inventory::CurrentSell(int flower) const {
     return (int)p;
 }
 
+void Inventory::SelectSlot(int s) {
+    if (s >= 0 && s < HotbarSize) { selectedSlot = s; SyncSelected(); }
+}
+
+void Inventory::AddSeedToBag(int flower) {
+    for (int i = 0; i < HotbarSize; i++) if (hotbar[i] == flower) return;   // deja în hotbar
+    for (int i = 0; i < HotbarSize; i++) if (hotbar[i] < 0) { hotbar[i] = flower; return; }
+    // hotbar plin: rămâne doar în inventar (accesibil cu I)
+}
+
+void Inventory::SelectFlower(int flower) {
+    AddSeedToBag(flower);
+    for (int i = 0; i < HotbarSize; i++) if (hotbar[i] == flower) { selectedSlot = i; break; }
+    SyncSelected();
+}
+
 void Inventory::CycleSeed() {
-    // trece la următoarea floare pentru care AI semințe (ce poți planta acum)
-    for (int i = 1; i <= (int)Flower::COUNT; i++) {
-        int idx = (selectedSeed + i) % (int)Flower::COUNT;
-        if (seeds[idx] > 0) { selectedSeed = idx; return; }
+    // trece la următorul slot din hotbar cu o sămânță pe care o ai
+    for (int k = 1; k <= HotbarSize; k++) {
+        int s = (selectedSlot + k) % HotbarSize;
+        int f = hotbar[s];
+        if (f >= 0 && seeds[f] > 0) { selectedSlot = s; SyncSelected(); return; }
     }
 }
 
 void Inventory::EnsureValidSeed() {
-    if (seeds[selectedSeed] > 0) return;
-    for (int i = 0; i < (int)Flower::COUNT; i++)
-        if (seeds[i] > 0) { selectedSeed = i; return; }
+    SyncSelected();
+    if (selectedSeed >= 0 && seeds[selectedSeed] > 0) return;
+    for (int s = 0; s < HotbarSize; s++) {
+        int f = hotbar[s];
+        if (f >= 0 && seeds[f] > 0) { selectedSlot = s; SyncSelected(); return; }
+    }
 }
 
 void Inventory::AddXP(int amount) {
@@ -166,32 +243,32 @@ void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {
         DrawText(TextFormat("Drum: %d  Piatra: %d  (B = construieste)", roadCount, stoneCount),
                  16, 66, 15, Color{ 210, 190, 150, 255 });
 
-    // Bară de semințe: TOATE semințele pe care le ai (ce poți planta acum)
-    int owned[(int)Flower::COUNT], cnt = 0;
-    for (int i = 0; i < (int)Flower::COUNT; i++) if (seeds[i] > 0) owned[cnt++] = i;
-
+    // HOTBAR: cele 6 sloturi de jos (restul semințelor: tasta I)
     const int slot = 52, gap = 6;
-    int total = (cnt > 0) ? cnt * (slot + gap) - gap : slot;
+    int total = HotbarSize * (slot + gap) - gap;
     int x0 = GetScreenWidth() / 2 - total / 2;
     int y0 = GetScreenHeight() - slot - 14;
 
-    if (cnt == 0) {
-        DrawText("Nicio samanta - cumpara din magazin (TAB) sau market",
-                 GetScreenWidth()/2 - 200, y0 + 16, 16, Color{ 230, 220, 180, 220 });
-    }
-    for (int j = 0; j < cnt; j++) {
-        int idx = owned[j];
-        int sx = x0 + j * (slot + gap);
-        bool sel = (idx == selectedSeed);
+    for (int s = 0; s < HotbarSize; s++) {
+        int sx = x0 + s * (slot + gap);
+        bool sel = (s == selectedSlot);
         DrawRectangle(sx, y0, slot, slot, Color{ 40, 30, 20, 210 });
         DrawRectangleLinesEx(Rectangle{ (float)sx, (float)y0, (float)slot, (float)slot },
                              sel ? 3.0f : 2.0f, sel ? Color{ 255,220,90,255 } : Color{ 110,90,60,255 });
-        const FlowerInfo& fi = FLOWERS[idx];
-        DrawTexturePro(ftex[fi.tex], fi.r2, Rectangle{ sx + 8.0f, y0 + 6.0f, 36, 36 }, { 0, 0 }, 0.0f, WHITE);
-        DrawText(TextFormat("%d", seeds[idx]), sx + 4, y0 + slot - 16, 14, WHITE);
+        DrawText(TextFormat("%d", s + 1), sx + 3, y0 + 2, 12, Color{ 150, 140, 120, 255 });
+        int f = hotbar[s];
+        if (f >= 0 && f < (int)Flower::COUNT) {
+            const FlowerInfo& fi = FLOWERS[f];
+            Color tint = (seeds[f] > 0) ? WHITE : Color{ 120, 120, 120, 160 };
+            DrawTexturePro(ftex[fi.tex], fi.r2, Rectangle{ sx + 8.0f, y0 + 6.0f, 36, 36 }, { 0, 0 }, 0.0f, tint);
+            DrawText(TextFormat("%d", seeds[f]), sx + 4, y0 + slot - 16, 14,
+                     seeds[f] > 0 ? WHITE : Color{ 200, 120, 120, 255 });
+        }
     }
+    DrawText("I = inventar", x0 + total + 10, y0 + slot - 18, 14, Color{ 200, 200, 180, 200 });
+
     // numele florii selectate, deasupra barei
-    if (seeds[selectedSeed] > 0) {
+    if (selectedSeed >= 0 && selectedSeed < (int)Flower::COUNT && seeds[selectedSeed] > 0) {
         const char* nm = FLOWERS[selectedSeed].name;
         int tw = MeasureText(nm, 18);
         DrawText(nm, GetScreenWidth()/2 - tw/2, y0 - 22, 18, Color{ 255, 240, 200, 255 });

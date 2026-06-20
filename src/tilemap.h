@@ -4,17 +4,22 @@
 #include <vector>
 #include <iosfwd>
 
-enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall, Fence, Water };
+enum class Terrain { Grass, GrassDark, Dirt, Stone, Wall, Fence, Water, Sand, Bridge };
 
 class TileMap {
 public:
     static constexpr int TileSize = 32;
-    static constexpr int Width  = 70;    // mărit: 50x32 conținut + teren nou de cumpărat
-    static constexpr int Height = 48;
+    static constexpr int Width  = 90;    // hartă mare: acasă (50x32) + zone de deblocat
+    static constexpr int Height = 56;
 
     // Grădina de start: mică, cu gard în jur (în tile-uri).
     static constexpr int GX0 = 20, GY0 = 11, GX1 = 29, GY1 = 19;
     static constexpr int DunX0 = 34, DunY0 = 5, DunX1 = 49, DunY1 = 26;
+
+    // Țarcul de animale: o parcelă de cumpărat (sub grădină). Conturul = gard.
+    static constexpr int PenPC = 2, PenPR = 4;
+    static constexpr int PenX0 = 20, PenY0 = 33, PenX1 = 28, PenY1 = 39;
+    bool PenOwned() const { return PlotOwned(PenPC, PenPR); }
 
     // Parcele de teren (Forager): grilă peste hartă; cele de start sunt deținute.
     static constexpr int PlotW = 10, PlotH = 8;
@@ -57,6 +62,8 @@ private:
     Texture2D water{};      // NewAssets Water_Tile_1 (iaz, autotile)
     Texture2D caveFloor{};  // NewAssets Cave_Floor_Middle (podea peșteră)
     Texture2D caveWall{};   // NewAssets Cave_Walls (perete de stâncă)
+    Texture2D beach{};      // NewAssets Beach_Tiles (nisip)
+    Texture2D bridge{};     // NewAssets Bridge_Wood (pod peste apă)
 
     int Idx(int tx, int ty) const { return ty * Width + tx; }
     void Set(int tx, int ty, Terrain t);

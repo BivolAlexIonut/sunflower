@@ -8,8 +8,8 @@
 #include <string>
 #include <ctime>
 
-// v15: celulele de fermă au sete (dryTime) + stare „moartă" (plantele mor de neudare).
-static const int kSaveVersion = 15;
+// v19: hotbar (6 sloturi) + inventar; momente noi; țarc de animale.
+static const int kSaveVersion = 19;
 
 void SaveIO::Save(const char* path, const Inventory& inv, const Shop& shop,
                   const Farm& farm, const TileMap& map, const Memories& mem, Vector2 playerPos) {

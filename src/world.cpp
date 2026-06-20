@@ -89,12 +89,14 @@ int World::Interact(int tx, int ty, Inventory& inv, Player& player) {
         if (n.type == NodeType::Tree) {
             if (!inv.hasAxe) return 2;               // n-ai topor
             player.StartAction(Action::Axe);
-            if (--n.hp <= 0) { inv.wood += 3; n.respawn = 30.0f; }
+            n.hp -= (1 + inv.AxeBonus());            // upgrade: tai mai repede
+            if (n.hp <= 0) { inv.wood += 3 + inv.AxeBonus(); n.respawn = 30.0f; }
             return 1;
         } else {
             if (!inv.hasPickaxe) return 2;           // n-ai târnăcop
             player.StartAction(Action::Pickaxe);
-            if (--n.hp <= 0) { inv.crystals += 2; n.respawn = 45.0f; }
+            n.hp -= (1 + inv.PickBonus());           // upgrade: spargi mai repede
+            if (n.hp <= 0) { inv.crystals += 2 + inv.PickBonus(); n.respawn = 45.0f; }
             return 1;
         }
     }
@@ -117,19 +119,23 @@ void World::DrawNode(const Node& n) const {
     }
 }
 
-void World::PopulatePlot(int pc, int pr, int theme) {
+void World::PopulatePlot(int pc, int pr, int theme, const TileMap& map) {
     const int TS = TileMap::TileSize;
     int tx0 = pc * TileMap::PlotW, ty0 = pr * TileMap::PlotH;
+    bool crystals = (theme == 1 || theme == 4);
+    bool trees    = (theme == 0 || theme == 2 || theme == 3);   // pădure/crâng/livadă
+    // râu/plajă/luncă (5/6/7) → fără resurse de tăiat/minat
     for (int ty = ty0; ty < ty0 + TileMap::PlotH; ty++) {
         for (int tx = tx0; tx < tx0 + TileMap::PlotW; tx++) {
+            if (map.At(tx, ty) != Terrain::Grass && map.At(tx, ty) != Terrain::GrassDark)
+                continue;                              // doar pe iarbă (nu pe apă/nisip/cărare)
             unsigned int h = Hash(tx * 5 + 1, ty * 9 + 2);
-            if (theme == 1 || theme == 4) {            // mină de cristale (4 = bogată, mai densă)
-                bool place = (theme == 4) ? ((tx + ty) % 2 == 0)
-                                          : (tx % 2 == 0 && ty % 2 == 0);
+            if (crystals) {
+                bool place = (theme == 4) ? ((tx + ty) % 2 == 0) : (tx % 2 == 0 && ty % 2 == 0);
                 if (place)
                     nodes.push_back({ NodeType::Crystal,
                         { tx*(float)TS + 16.0f, ty*(float)TS + 28.0f }, (int)(h % 4), 2, 0 });
-            } else {                                   // pădure / crâng / livadă (copaci uniformi)
+            } else if (trees) {
                 int step = (theme == 2) ? 2 : 3;       // crâng des = mai dens
                 if (tx % step == 1 && ty % step == 1)
                     nodes.push_back({ NodeType::Tree,
@@ -143,7 +149,7 @@ void World::PopulateOwnedPlots(const TileMap& map) {
     for (int pr = 0; pr < TileMap::PlotRows; pr++)
         for (int pc = 0; pc < TileMap::PlotCols; pc++)
             if (map.PlotOwned(pc, pr) && !(pc <= 4 && pr <= 3))   // doar parcele NOI deținute
-                PopulatePlot(pc, pr, map.PlotTheme(pc, pr));
+                PopulatePlot(pc, pr, map.PlotTheme(pc, pr), map);
 }
 
 void World::DrawBehind(float pFeetY) const {

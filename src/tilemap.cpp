@@ -20,6 +20,8 @@ void TileMap::Load() {
     water     = LoadTexture(TextFormat("%sTiles/Water/Water_Tile_1.png", NA));
     caveFloor = LoadTexture(TextFormat("%sTiles/Cave/Cave_Floor_Middle.png", NA));
     caveWall  = LoadTexture(TextFormat("%sTiles/Cave/Cave_Walls.png", NA));
+    beach     = LoadTexture(TextFormat("%sTiles/Beach/Beach_Tiles.png", NA));
+    bridge    = LoadTexture(TextFormat("%sTiles/Bridge/Bridge_Wood.png", NA));
     tiles.assign(Width * Height, Terrain::Grass);
 }
 
@@ -30,6 +32,8 @@ void TileMap::Unload() {
     UnloadTexture(water);
     UnloadTexture(caveFloor);
     UnloadTexture(caveWall);
+    UnloadTexture(beach);
+    UnloadTexture(bridge);
 }
 
 void TileMap::Set(int tx, int ty, Terrain t) {
@@ -89,7 +93,12 @@ void TileMap::BuyPlot(int pc, int pr) {
 }
 
 int TileMap::PlotTheme(int pc, int pr) const {
-    return (int)(Hash(pc * 13 + 7, pr * 17 + 3) % 5);
+    if (pc == PenPC && pr == PenPR) return 8;   // țarcul de animale
+    if (pr >= 6)              return 6;   // plajă (jos de tot)
+    if (pc == 5 && pr <= 3)   return 3;   // est de râu = livadă
+    if (pc == 5)              return 5;   // coloana râului (jos) = râu
+    if (pr >= 4)              return 7;   // luncă de flori
+    return (int)(Hash(pc * 13 + 7, pr * 17 + 3) % 5);   // est: pădure/mină/crâng/livadă/mină bogată
 }
 const char* TileMap::ThemeName(int t) {
     switch (t) {
@@ -97,7 +106,11 @@ const char* TileMap::ThemeName(int t) {
         case 1:  return "Mina de cristale";
         case 2:  return "Crang des (lemn)";
         case 3:  return "Livada (lemn + seminte)";
-        default: return "Mina bogata (cristale)";
+        case 4:  return "Mina bogata (cristale)";
+        case 5:  return "Malul raului";
+        case 6:  return "Plaja (mare)";
+        case 8:  return "Tarc de animale";
+        default: return "Lunca de flori";
     }
 }
 
@@ -174,15 +187,44 @@ void TileMap::Build() {
     Set(GX1, 15, Terrain::Grass);  Set(GX1, 16, Terrain::Grass);   // grădină dreapta
     Set(DunX0, 15, Terrain::Stone); Set(DunX0, 16, Terrain::Stone); // dungeon stânga
 
-    // curtea casei (jos, sub grădină) — platformă de pământ pentru power-up-uri + cufăr
-    for (int ty = 28; ty <= 30; ty++)
-        for (int tx = 10; tx <= 33; tx++)
+    // curtea casei (chiar sub grădină) — platformă de pământ pentru power-up-uri + casă
+    for (int ty = 23; ty <= 25; ty++)
+        for (int tx = 12; tx <= 34; tx++)
             Set(tx, ty, Terrain::Dirt);
 
-    // iaz decorativ (lângă grădină, stânga) — apă, blochează mersul
-    for (int ty = 21; ty <= 24; ty++)
-        for (int tx = 15; tx <= 18; tx++)
+    // iaz decorativ (stânga, în luminișul pădurii) — apă, blochează mersul
+    for (int ty = 23; ty <= 26; ty++)
+        for (int tx = 6; tx <= 9; tx++)
             Set(tx, ty, Terrain::Water);
+
+    // ===== ZONE NOI (de deblocat prin tasta L) =====
+
+    // PLAJĂ + MARE (jos) — nisip apoi apă deschisă
+    for (int ty = 49; ty <= 51; ty++)
+        for (int tx = 8; tx <= 72; tx++)
+            Set(tx, ty, Terrain::Sand);
+    for (int ty = 52; ty < Height; ty++)
+        for (int tx = 8; tx <= 72; tx++)
+            Set(tx, ty, Terrain::Water);
+
+    // RÂU vertical (col 5) care curge în mare, cu POD sub peșteră (y28-29)
+    for (int ty = 2; ty <= 51; ty++)
+        for (int tx = 50; tx <= 52; tx++)
+            Set(tx, ty, Terrain::Water);
+    for (int tx = 50; tx <= 52; tx++) {
+        Set(tx, 28, Terrain::Bridge); Set(tx, 29, Terrain::Bridge);   // traversare
+    }
+    // cărare care leagă curtea → pod → malul estic
+    for (int tx = 34; tx <= 49; tx++) { Set(tx, 28, Terrain::Dirt); Set(tx, 29, Terrain::Dirt); }
+    for (int tx = 53; tx <= 59; tx++) { Set(tx, 28, Terrain::Dirt); Set(tx, 29, Terrain::Dirt); }
+
+    // ȚARC de animale (parcela de cumpărat, sub grădină) — gard în jur, intrare sus
+    for (int ty = PenY0; ty <= PenY1; ty++)
+        for (int tx = PenX0; tx <= PenX1; tx++) {
+            bool border = (tx == PenX0 || tx == PenX1 || ty == PenY0 || ty == PenY1);
+            Set(tx, ty, border ? Terrain::Fence : Terrain::Grass);
+        }
+    Set(24, PenY0, Terrain::Grass); Set(25, PenY0, Terrain::Grass);   // intrare
 }
 
 static const Rectangle kSrc16{ 0, 0, 16, 16 };
@@ -198,8 +240,12 @@ void TileMap::DrawGrass(int tx, int ty) const {
 // Gard verde (Hedge_Tiles): bloc 9-slice la offset (16,16). Aleg piesa după poziția în grădină.
 void TileMap::DrawHedge(int tx, int ty) const {
     const float TS = (float)TileSize;
-    int col = (tx == GX0) ? 0 : (tx == GX1) ? 2 : 1;
-    int row = (ty == GY0) ? 0 : (ty == GY1) ? 2 : 1;
+    int x0 = GX0, x1 = GX1, y0 = GY0, y1 = GY1;
+    if (tx >= PenX0 && tx <= PenX1 && ty >= PenY0 && ty <= PenY1) {   // țarcul de animale
+        x0 = PenX0; x1 = PenX1; y0 = PenY0; y1 = PenY1;
+    }
+    int col = (tx == x0) ? 0 : (tx == x1) ? 2 : 1;
+    int row = (ty == y0) ? 0 : (ty == y1) ? 2 : 1;
     Rectangle src{ 16.0f + col*16, 16.0f + row*16, 16, 16 };
     DrawTexturePro(hedge, src, Rectangle{ tx*TS, ty*TS, TS, TS }, { 0, 0 }, 0, WHITE);
 }
@@ -241,9 +287,16 @@ void TileMap::Draw(const Camera2D& cam) const {
                     DrawGrass(x, y);
                     DrawHedge(x, y);
                     break;
-                case Terrain::Water:                      // iaz pe iarbă
+                case Terrain::Water:                      // iaz / râu / mare
                     DrawGrass(x, y);
                     DrawWater(x, y);
+                    break;
+                case Terrain::Sand:                       // nisip de plajă
+                    DrawTexturePro(beach, Rectangle{ 16, 16, 16, 16 }, dst, { 0, 0 }, 0, WHITE);
+                    break;
+                case Terrain::Bridge:                     // pod de lemn peste apă
+                    DrawTexturePro(water, Rectangle{ 16, 16, 16, 16 }, dst, { 0, 0 }, 0, WHITE);
+                    DrawTexturePro(bridge, Rectangle{ 16, 0, 16, 16 }, dst, { 0, 0 }, 0, WHITE);
                     break;
                 case Terrain::Stone:                      // podea de peșteră
                     DrawTexturePro(caveFloor, kSrc16, dst, { 0, 0 }, 0, WHITE);
