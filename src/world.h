@@ -46,4 +46,12 @@ private:
     float animTime = 0.0f;
 
     void DrawNode(const Node& n) const;
+
+    // clădiri decorative (case, hambar, moară etc.) — Y-sortate, cu coliziune
+    static constexpr int PropTexCount = 11;
+    Texture2D propTex[PropTexCount]{};
+    struct Prop { int tex; Rectangle src; Vector2 pos; float w, h; Rectangle col; };
+    std::vector<Prop> props;
+    void PlaceProps();
+    void DrawProp(const Prop& p) const;
 };

@@ -92,15 +92,16 @@ void Shop::HandleInput(Inventory& inv, Player& player) {
             if (inv.money >= cost) { inv.money -= cost; inv.animals[row]++; }
         }
     }
-    else if (tab == 2) {                              // CONSTRUIESTE (drum / piatră)
-        if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % 2;
-        if (IsKeyPressed(KEY_UP))   row = (row + 1) % 2;
+    else if (tab == 2) {                              // CONSTRUIESTE (materiale)
+        int n = Inventory::BuildMatCount;
+        if (IsKeyPressed(KEY_DOWN)) row = (row + 1) % n;
+        if (IsKeyPressed(KEY_UP))   row = (row + n - 1) % n;
         if (IsKeyPressed(KEY_B)) {                     // cumpără material
-            if (row == 0 && inv.money >= Inventory::RoadCost)  { inv.money -= Inventory::RoadCost;  inv.roadCount++; }
-            if (row == 1 && inv.money >= Inventory::StoneCost) { inv.money -= Inventory::StoneCost; inv.stoneCount++; }
+            int cost = Inventory::BuildCost(row);
+            if (inv.money >= cost) { inv.money -= cost; inv.buildMat[row]++; }
         }
-        if (IsKeyPressed(KEY_ENTER)) {                 // intră în modul construire
-            inv.buildSel = (row == 0) ? 1 : 2;
+        if (IsKeyPressed(KEY_ENTER) && inv.buildMat[row] > 0) {   // intră în modul construire
+            inv.buildSel = row + 1;
             open = false;
         }
     }
@@ -253,8 +254,8 @@ void Shop::DrawUpgrades(int x, int y, int w, int h, const Inventory& inv) const 
 
 void Shop::DrawAnimals(int x, int y, int w, int h, const Inventory& inv) const {
     (void)h;
-    DrawText(TextFormat("Animalele aduc bani singure, chiar si cat esti plecat. Venit acum: %.0f bani/min",
-             inv.AnimalIncomePerMin()), x, y, 14, Color{ 200, 220, 190, 255 });
+    DrawText("Animalele produc ALIMENTE (chiar si cat esti plecat). Le vinzi negustorilor din oras.",
+             x, y, 14, Color{ 200, 220, 190, 255 });
     if (!animalsUnlocked)
         DrawText("Mai intai cumpara TARCUL de animale din modul harta (tasta L)!",
                  x, y + 18, 15, Color{ 255, 150, 120, 255 });
@@ -262,7 +263,7 @@ void Shop::DrawAnimals(int x, int y, int w, int h, const Inventory& inv) const {
         int ry = y + 30 + i * 76;
         if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 68, Color{ 255, 255, 255, 26 });
         DrawText(Inventory::AnimalName(i), x, ry, 22, WHITE);
-        DrawText(TextFormat("Produce %.0f bani/min", Inventory::AnimalIncome(i)),
+        DrawText(TextFormat("Produce: %s  (ai %d in depozit)", Inventory::FoodName(i), inv.food[i]),
                  x, ry + 26, 15, Color{ 190, 200, 190, 255 });
         DrawText(TextFormat("ai: %d", inv.animals[i]), x + w - 80, ry, 18, Color{ 200, 220, 200, 255 });
         DrawText(TextFormat("[B] Cumpara: %d", Inventory::AnimalCost(i)), x + 300, ry + 4, 18,
@@ -271,21 +272,16 @@ void Shop::DrawAnimals(int x, int y, int w, int h, const Inventory& inv) const {
 }
 
 void Shop::DrawBuild(int x, int y, int w, int h, const Inventory& inv) const {
+    (void)h;
     DrawText("Cumpara materiale [B], apoi [ENTER] = mod construire (click pe harta).",
              x, y, 15, Color{ 190, 200, 190, 255 });
-
-    struct Row { const char* name; const char* desc; int have; int cost; };
-    Row rows[2] = {
-        { "Drum",   "Cale de pamant pe care poti merge", inv.roadCount,  Inventory::RoadCost },
-        { "Piatra", "Bloc solid (nu poti merge pe el)",  inv.stoneCount, Inventory::StoneCost },
-    };
-    for (int i = 0; i < 2; i++) {
-        int ry = y + 32 + i * 72;
-        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 64, Color{ 255, 255, 255, 26 });
-        DrawText(rows[i].name, x, ry, 22, WHITE);
-        DrawText(rows[i].desc, x, ry + 26, 15, Color{ 190, 200, 190, 255 });
-        DrawText(TextFormat("ai: %d", rows[i].have), x + w - 70, ry, 18, Color{ 200, 220, 200, 255 });
-        DrawText(TextFormat("[B] Cumpara: %d", rows[i].cost), x + 300, ry + 4, 18,
+    for (int i = 0; i < Inventory::BuildMatCount; i++) {
+        int ry = y + 30 + i * 58;
+        if (i == row) DrawRectangle(x - 6, ry - 6, w + 12, 52, Color{ 255, 255, 255, 26 });
+        DrawText(Inventory::BuildName(i), x, ry, 20, WHITE);
+        DrawText(Inventory::BuildDesc(i), x, ry + 23, 14, Color{ 190, 200, 190, 255 });
+        DrawText(TextFormat("ai: %d", inv.buildMat[i]), x + w - 70, ry, 18, Color{ 200, 220, 200, 255 });
+        DrawText(TextFormat("[B] %d   [ENTER] pune", Inventory::BuildCost(i)), x + 280, ry + 2, 17,
                  Color{ 230, 200, 140, 255 });
     }
 }

@@ -30,6 +30,7 @@ add_executable(sunflower
     src/particles.cpp
     src/memories.cpp
     src/ambient.cpp
+    src/sudoku.cpp
 )
 target_link_libraries(sunflower PRIVATE raylib)
 

@@ -79,21 +79,36 @@ int Inventory::UpgCost(int i) const {
     return kUpg[i].baseCost * (upg[i] + 1);     // crește cu nivelul
 }
 
-// ---- ANIMALE ----
-struct AnimCfg { const char* name; int cost; float income; };   // income = bani/min
+// ---- ANIMALE + ALIMENTE ----
+struct AnimCfg { const char* name; int cost; float foodPerMin; };
 static const AnimCfg kAnim[Inventory::AnimalCount] = {
-    { "Gaina",  120,  3.0f },
-    { "Porc",   350,  8.0f },
-    { "Oaie",   600, 14.0f },
-    { "Vaca",  1400, 30.0f },
+    { "Gaina",  120, 1.0f },     // → Oua
+    { "Porc",   350, 0.4f },     // → Sunca
+    { "Oaie",   600, 0.4f },     // → Lana
+    { "Vaca",  1400, 0.5f },     // → Lapte
+};
+struct FoodCfg { const char* name; int price; };
+static const FoodCfg kFood[Inventory::FoodCount] = {
+    { "Oua",   10 }, { "Sunca", 50 }, { "Lana", 40 }, { "Lapte", 24 },
 };
 const char* Inventory::AnimalName(int i) { return (i>=0&&i<AnimalCount)?kAnim[i].name:""; }
-int   Inventory::AnimalCost(int i)   { return (i>=0&&i<AnimalCount)?kAnim[i].cost:0; }
-float Inventory::AnimalIncome(int i) { return (i>=0&&i<AnimalCount)?kAnim[i].income:0; }
-float Inventory::AnimalIncomePerMin() const {
-    float t = 0; for (int i = 0; i < AnimalCount; i++) t += animals[i] * kAnim[i].income;
-    return t;
-}
+int   Inventory::AnimalCost(int i)       { return (i>=0&&i<AnimalCount)?kAnim[i].cost:0; }
+float Inventory::AnimalFoodPerMin(int i) { return (i>=0&&i<AnimalCount)?kAnim[i].foodPerMin:0; }
+const char* Inventory::FoodName(int i)   { return (i>=0&&i<FoodCount)?kFood[i].name:""; }
+int Inventory::FoodPrice(int i)          { return (i>=0&&i<FoodCount)?kFood[i].price:0; }
+
+// ---- MATERIALE de construcție ----
+struct BuildCfg { const char* name; const char* desc; int cost; };
+static const BuildCfg kBuild[Inventory::BuildMatCount] = {
+    { "Drum",   "Cale de pamant pe care poti merge",        12 },
+    { "Piatra", "Bloc solid de piatra (zid)",               25 },
+    { "Gard",   "Gard alb - imprejmuieste gradini frumoase", 18 },
+    { "Apa",    "Apa decorativa (nu poti merge pe ea)",      20 },
+    { "Nisip",  "Nisip de plaja (decorativ)",                10 },
+};
+const char* Inventory::BuildName(int i) { return (i>=0&&i<BuildMatCount)?kBuild[i].name:""; }
+const char* Inventory::BuildDesc(int i) { return (i>=0&&i<BuildMatCount)?kBuild[i].desc:""; }
+int Inventory::BuildCost(int i)         { return (i>=0&&i<BuildMatCount)?kBuild[i].cost:0; }
 float Inventory::GrowMul() const { return kDiff[ClampDiff(difficulty)].grow; }
 float Inventory::SellMul() const { return kDiff[ClampDiff(difficulty)].sell; }
 float Inventory::SeedMul() const { return kDiff[ClampDiff(difficulty)].seed; }
@@ -106,7 +121,8 @@ void Inventory::Serialize(std::ostream& o) const {
     for (int i = 0; i < (int)Flower::COUNT; i++) o << (unlocked[i] ? 1 : 0) << " "; o << "\n";
     o << wood << " " << crystals << " " << (hasAxe ? 1 : 0) << " " << (hasPickaxe ? 1 : 0) << "\n";
     o << day << " " << xp << " " << level << "\n";
-    o << roadCount << " " << stoneCount << "\n";
+    for (int i = 0; i < BuildMatCount; i++) o << buildMat[i] << " ";
+    o << "\n";
     for (int i = 0; i < BuffCount; i++) o << buff[i] << " ";
     o << "\n";
     o << difficulty << " " << playSeconds << "\n";
@@ -115,6 +131,8 @@ void Inventory::Serialize(std::ostream& o) const {
     o << "\n";
     for (int i = 0; i < HotbarSize; i++) o << hotbar[i] << " ";
     o << selectedSlot << "\n";
+    for (int i = 0; i < FoodCount; i++) o << food[i] << " ";
+    o << "\n";
 }
 
 void Inventory::Deserialize(std::istream& in) {
@@ -125,13 +143,14 @@ void Inventory::Deserialize(std::istream& in) {
     int ax, pk; in >> wood >> crystals >> ax >> pk;
     hasAxe = (ax != 0); hasPickaxe = (pk != 0);
     in >> day >> xp >> level;
-    in >> roadCount >> stoneCount;
+    for (int i = 0; i < BuildMatCount; i++) in >> buildMat[i];
     for (int i = 0; i < BuffCount; i++) in >> buff[i];
     in >> difficulty >> playSeconds;
     for (int i = 0; i < UpgCount; i++) in >> upg[i];
     for (int i = 0; i < AnimalCount; i++) in >> animals[i];
     for (int i = 0; i < HotbarSize; i++) in >> hotbar[i];
     in >> selectedSlot;
+    for (int i = 0; i < FoodCount; i++) in >> food[i];
     SyncSelected();
 }
 
@@ -140,9 +159,11 @@ void Inventory::TickTime(float dt) {
     if (dayTimer >= DaySeconds) { dayTimer -= DaySeconds; day++; }
     if (levelUpTimer > 0) levelUpTimer--;
     playSeconds += dt;
-    // venit pasiv de la animale
-    animalAccum += AnimalIncomePerMin() / 60.0f * dt;
-    if (animalAccum >= 1.0f) { int add = (int)animalAccum; money += add; animalAccum -= add; }
+    // animalele produc alimente (pe tip)
+    for (int i = 0; i < AnimalCount; i++) {
+        foodAccum[i] += animals[i] * AnimalFoodPerMin(i) / 60.0f * dt;
+        if (foodAccum[i] >= 1.0f) { int a = (int)foodAccum[i]; food[i] += a; foodAccum[i] -= a; }
+    }
 }
 
 float Inventory::PriceFactor(int flower) const {
@@ -208,7 +229,7 @@ void Inventory::AddXP(int amount) {
         if (level == 3) msg += "  (apasa L: cumpara teren!)";
         if (level == 5 && !hasAxe)      { hasAxe = true;      msg += "  +Topor"; }
         if (level == 7 && !hasPickaxe)  { hasPickaxe = true;  msg += "  +Tarnacop"; }
-        if (level % 4 == 0)             { roadCount += 3;     msg += "  +3 drum"; }
+        if (level % 4 == 0)             { buildMat[0] += 3;  msg += "  +3 drum"; }
 
         levelUpMsg = msg;
         levelUpTimer = 220;
@@ -239,9 +260,12 @@ void Inventory::Draw(const Texture2D* ftex, const Texture2D& icons) const {
     // Resurse (lemn, cristale, materiale de construcție)
     DrawText(TextFormat("Lemn: %d", wood), 16, 46, 18, Color{ 200, 160, 110, 255 });
     DrawText(TextFormat("Cristale: %d", crystals), 120, 46, 18, Color{ 130, 210, 230, 255 });
-    if (roadCount > 0 || stoneCount > 0)
-        DrawText(TextFormat("Drum: %d  Piatra: %d  (B = construieste)", roadCount, stoneCount),
-                 16, 66, 15, Color{ 210, 190, 150, 255 });
+    {
+        bool anyMat = false;
+        for (int i = 0; i < BuildMatCount; i++) if (buildMat[i] > 0) anyMat = true;
+        if (anyMat)
+            DrawText("B = construieste (drum/gard/piatra...)", 16, 66, 15, Color{ 210, 190, 150, 255 });
+    }
 
     // HOTBAR: cele 6 sloturi de jos (restul semințelor: tasta I)
     const int slot = 52, gap = 6;

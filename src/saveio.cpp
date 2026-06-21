@@ -8,8 +8,8 @@
 #include <string>
 #include <ctime>
 
-// v19: hotbar (6 sloturi) + inventar; momente noi; țarc de animale.
-static const int kSaveVersion = 19;
+// v21: mai multe materiale de construcție (buildMat[5]: drum/piatra/gard/apa/nisip).
+static const int kSaveVersion = 21;
 
 void SaveIO::Save(const char* path, const Inventory& inv, const Shop& shop,
                   const Farm& farm, const TileMap& map, const Memories& mem, Vector2 playerPos) {

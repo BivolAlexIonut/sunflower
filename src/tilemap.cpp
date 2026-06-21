@@ -16,7 +16,7 @@ void TileMap::Load() {
     grass[2] = LoadTexture(TextFormat("%sTiles/Grass/Grass_3_Middle.png", NA));
     grass[3] = LoadTexture(TextFormat("%sTiles/Grass/Grass_4_Middle.png", NA));
     path     = LoadTexture(TextFormat("%sTiles/Grass/Path_Middle.png", NA));
-    hedge    = LoadTexture(TextFormat("%sTiles/Hedge_Tiles.png", NA));
+    hedge    = LoadTexture(TextFormat("%sOutdoor decoration/White_Fence.png", NA));   // gard alb picket
     water     = LoadTexture(TextFormat("%sTiles/Water/Water_Tile_1.png", NA));
     caveFloor = LoadTexture(TextFormat("%sTiles/Cave/Cave_Floor_Middle.png", NA));
     caveWall  = LoadTexture(TextFormat("%sTiles/Cave/Cave_Walls.png", NA));
@@ -238,15 +238,24 @@ void TileMap::DrawGrass(int tx, int ty) const {
 }
 
 // Gard verde (Hedge_Tiles): bloc 9-slice la offset (16,16). Aleg piesa după poziția în grădină.
+// Gardul (White_Fence) se auto-îmbină după vecini → merge oriunde îl construiește jucătorul.
 void TileMap::DrawHedge(int tx, int ty) const {
     const float TS = (float)TileSize;
-    int x0 = GX0, x1 = GX1, y0 = GY0, y1 = GY1;
-    if (tx >= PenX0 && tx <= PenX1 && ty >= PenY0 && ty <= PenY1) {   // țarcul de animale
-        x0 = PenX0; x1 = PenX1; y0 = PenY0; y1 = PenY1;
+    bool fl = At(tx-1, ty) == Terrain::Fence, fr = At(tx+1, ty) == Terrain::Fence;
+    bool fu = At(tx, ty-1) == Terrain::Fence, fd = At(tx, ty+1) == Terrain::Fence;
+    bool h = fl || fr, v = fu || fd;
+    Rectangle src;
+    if (h && v) {                                  // colț (din blocul 3x3, offset 16,16)
+        src = { fr ? 16.0f : 48.0f, fd ? 16.0f : 48.0f, 16, 16 };
+    } else if (h) {                                // segment orizontal (rândul 0)
+        float cx = fl ? (fr ? 32.0f : 48.0f) : (fr ? 16.0f : 32.0f);
+        src = { cx, 0, 16, 16 };
+    } else if (v) {                                // segment vertical (coloana 0)
+        float cy = fu ? (fd ? 32.0f : 48.0f) : (fd ? 16.0f : 32.0f);
+        src = { 0, cy, 16, 16 };
+    } else {                                       // stâlp izolat
+        src = { 0, 32, 16, 16 };
     }
-    int col = (tx == x0) ? 0 : (tx == x1) ? 2 : 1;
-    int row = (ty == y0) ? 0 : (ty == y1) ? 2 : 1;
-    Rectangle src{ 16.0f + col*16, 16.0f + row*16, 16, 16 };
     DrawTexturePro(hedge, src, Rectangle{ tx*TS, ty*TS, TS, TS }, { 0, 0 }, 0, WHITE);
 }
 

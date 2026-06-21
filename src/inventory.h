@@ -65,21 +65,28 @@ public:
     int   PickBonus()   const { return upg[4]; }                  // +daună/+cristale
     float MoveMul()     const { return 1.0f + 0.12f * upg[5]; }   // mers mai rapid
 
-    // ANIMALE (produc bani pasiv, inclusiv offline). 0 Gaina, 1 Porc, 2 Oaie, 3 Vaca
+    // ANIMALE (produc ALIMENTE pasiv, inclusiv offline). 0 Gaina, 1 Porc, 2 Oaie, 3 Vaca
     static constexpr int AnimalCount = 4;
     int animals[AnimalCount] = { 0, 0, 0, 0 };
-    float animalAccum = 0.0f;                   // runtime: bani fracționari acumulați
     static const char* AnimalName(int i);
     static int   AnimalCost(int i);             // preț de cumpărare
-    static float AnimalIncome(int i);           // bani/min per animal
-    float AnimalIncomePerMin() const;           // venit total/min
+    static float AnimalFoodPerMin(int i);       // alimente/min per animal de tip i
 
-    // materiale de construcție (drum / piatră) + ce construiești acum (runtime)
-    int roadCount = 0;
-    int stoneCount = 0;
-    int buildSel = 0;        // 0 = nimic, 1 = drum, 2 = piatră (nu se salvează)
-    static constexpr int RoadCost = 12;
-    static constexpr int StoneCost = 25;
+    // ALIMENTE produse de animale (index = tipul animalului). Le vinzi la negustori în oraș.
+    static constexpr int FoodCount = 4;         // 0 Oua, 1 Sunca, 2 Lana, 3 Lapte
+    int food[FoodCount] = { 0, 0, 0, 0 };
+    float foodAccum[FoodCount] = { 0, 0, 0, 0 };   // runtime
+    static const char* FoodName(int i);
+    static int FoodPrice(int i);
+
+    // MATERIALE de construcție (le cumperi, apoi le pui cu B în lume)
+    // 0 Drum, 1 Piatra, 2 Gard, 3 Apa, 4 Nisip
+    static constexpr int BuildMatCount = 5;
+    int buildMat[BuildMatCount] = { 0, 0, 0, 0, 0 };
+    int buildSel = 0;        // 0 = nimic, 1..BuildMatCount = material (index = buildSel-1); runtime
+    static const char* BuildName(int i);
+    static const char* BuildDesc(int i);
+    static int BuildCost(int i);
 
     // piață: prețurile fluctuează în fiecare "zi"
     int day = 0;

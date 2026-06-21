@@ -13,12 +13,22 @@
 #include "particles.h"
 #include "memories.h"
 #include "ambient.h"
+#include "sudoku.h"
 #include <vector>
 #include <cmath>
 #include <string>
 
-enum class Scene { Menu, World, Market };
+enum class Scene { Menu, World, Market, Sudoku };
 enum class MPage { Main, Diff, Slot, Load, Help };   // paginile meniului principal
+
+// material de construcție (index) → terenul pus pe hartă
+static Terrain BuildTerrainFor(int mat) {
+    switch (mat) {
+        case 0: return Terrain::Dirt;   case 1: return Terrain::Wall;
+        case 2: return Terrain::Fence;  case 3: return Terrain::Water;
+        case 4: return Terrain::Sand;   default: return Terrain::Dirt;
+    }
+}
 
 int main(int argc, char** argv) {
     std::string arg1 = (argc > 1) ? argv[1] : "";
@@ -30,7 +40,9 @@ int main(int argc, char** argv) {
     if (arg1 == "--shopanim") shotShopTab = 6;   // verifică fila ANIMALE
     bool shotShop = (shotShopTab >= 0);
     bool shotBag = (arg1 == "--shotbag");
-    shotMode = shotMode || shotShop || shotBag;
+    bool shotSudoku = (arg1 == "--shotsudoku");
+    bool shotSell = (arg1 == "--shotsell");
+    shotMode = shotMode || shotShop || shotBag || shotSudoku || shotSell;
     const int screenW = 960, screenH = 540;
     InitWindow(screenW, screenH, "Gradina Florii-Soarelui");
     SetTargetFPS(60);
@@ -61,6 +73,21 @@ int main(int argc, char** argv) {
     Particles fx;                       // particule (apă, petale, monede, stele, inimi)
     Memories memories;                  // momentele relației (locuri + bilețele)
     Ambient ambient;   ambient.Load();  // albine/fluturi + flori decorative
+    Sudoku  sudoku;                     // minigame la han (sudoku cu flori)
+    Vector2 innSpot = { 65 * TS + 16.0f, 44 * TS + 0.0f };   // intrarea în han (oraș)
+
+    // NEGUSTORI (NPC-uri) lângă tarabe — personaje cu cadru frontal clar (Walk_Down, 4 cadre 32x32)
+    Texture2D npcTex[3] = {
+        LoadTexture("sprites/Characters/Character05/Character05_Walk_Down.png"),
+        LoadTexture("sprites/Characters/Character10/Character10_Walk_Down.png"),
+        LoadTexture("sprites/Characters/Knight_11/Knight_11_Walk_Down.png"),
+    };
+    Vector2 npcPos[3] = {
+        { 72 * TS + 16.0f, 46 * TS + 8.0f },
+        { 75 * TS + 16.0f, 45 * TS + 8.0f },
+        { 79 * TS + 16.0f, 46 * TS + 8.0f },
+    };
+    bool sellOpen = false;
     Scene scene = Scene::Menu;
     MPage mpage = MPage::Main;
     int  msel = 0;            // selecție în meniu
@@ -75,6 +102,8 @@ int main(int argc, char** argv) {
     std::string welcomeMsg; int welcomeTimer = 0;
     int prevLevel = inventory.level;    // pentru a detecta level-up (stele)
     int prevAnimTotal = 0;              // pentru a re-sincroniza animalele când cumperi
+    float rainTimer = 0.0f;             // secunde de ploaie rămase
+    float rainCheckTimer = 0.0f;        // cât până la următoarea verificare de ploaie aleatorie
 
     Texture2D chestTex = LoadTexture("sprites/NewAssets/Buildings/Buildings/Houses/Wood/House_1_Wood_Base_Red.png");
     Texture2D suppliesTex = LoadTexture("sprites/Plants&supplies/Supplies.png");
@@ -94,8 +123,9 @@ int main(int argc, char** argv) {
         { { 19*TS+16.0f, 24*TS+0.0f }, {  64, 2, 30, 42 }, 2, 110, "Crestere rapida" },
         { { 22*TS+16.0f, 24*TS+0.0f }, { 192, 2, 30, 42 }, 3, 150, "Bonus bani"      },
         { { 25*TS+16.0f, 24*TS+0.0f }, { 224, 2, 30, 42 }, 4, 100, "Bonus XP"        },
+        { { 28*TS+16.0f, 24*TS+0.0f }, { 128, 2, 30, 42 }, 5, 250, "Ploaie 10min"   },
     };
-    const int powerupCount = 5;
+    const int powerupCount = 6;
     const float BuffDuration = 300.0f;   // 5 minute
 
     // dungeon: dreptunghi în pixeli, pentru ambianța întunecată
@@ -121,14 +151,19 @@ int main(int argc, char** argv) {
         int crops = farm.CropCount();
         int bees = (int)((1.0 + 0.6 * crops) * (capped / 60.0));
         if (bees > 50000) bees = 50000;
-        int animMoney = (int)(inventory.AnimalIncomePerMin() * (capped / 60.0));
-        inventory.money += bees + animMoney;
+        inventory.money += bees;
         inventory.day += (int)(capped / Inventory::DaySeconds);
+        // animalele au produs alimente cât ai fost plecată
+        int foodTotal = 0;
+        for (int i = 0; i < Inventory::FoodCount; i++) {
+            int produced = (int)(inventory.animals[i] * Inventory::AnimalFoodPerMin(i) * (capped / 60.0));
+            inventory.food[i] += produced; foodTotal += produced;
+        }
         int hh = (int)(offlineSeconds / 3600), mm = ((int)offlineSeconds % 3600) / 60;
         std::string m = TextFormat("Ai lipsit %dh %dm.\nPlantele udate au crescut %d stadii.\n", hh, mm, grown);
         if (died > 0) m += TextFormat("%d plante au murit de sete!\n", died);
         m += TextFormat("Albinele au strans %d bani.", bees);
-        if (animMoney > 0) m += TextFormat("\nAnimalele au produs %d bani.", animMoney);
+        if (foodTotal > 0) m += TextFormat("\nAnimalele au produs %d alimente (vinde-le in oras).", foodTotal);
         welcomeMsg = m;
         welcomeTimer = 600;   // ~10s
     };
@@ -175,10 +210,17 @@ int main(int argc, char** argv) {
 
     if (shotMode && !shotMenu) {
         startNewGame(1, 1);
-        map.BuyPlot(TileMap::PenPC, TileMap::PenPR);            // dezvăluie țarcul
-        for (int i = 0; i < 4; i++) inventory.animals[i] = 3;   // animale pt. verificare
+        for (int pr = 0; pr < TileMap::PlotRows; pr++)          // dezvăluie toată harta
+            for (int pc = 0; pc < TileMap::PlotCols; pc++) map.BuyPlot(pc, pr);
+        world.Generate(map); world.PopulateOwnedPlots(map);
+        for (int i = 0; i < 4; i++) inventory.animals[i] = 3;
         ambient.SyncAnimals(inventory.animals);
-        player.position = { 24*TS + 16.0f, 22*TS + 16.0f };
+        // demo: o grădiniță împrejmuită cu gard construit + nisip/apă (verifică auto-îmbinarea)
+        for (int xx = 4; xx <= 11; xx++) { map.Place(xx, 40, Terrain::Fence); map.Place(xx, 46, Terrain::Fence); }
+        for (int yy = 40; yy <= 46; yy++) { map.Place(4, yy, Terrain::Fence); map.Place(11, yy, Terrain::Fence); }
+        map.Place(7, 40, Terrain::Grass); map.Place(8, 40, Terrain::Grass);   // poartă
+        map.Place(6, 42, Terrain::Sand); map.Place(9, 44, Terrain::Water);
+        player.position = { 7*TS + 16.0f, 43*TS + 16.0f };
         if (shotShop) {                                         // verifică o filă din meniu
             inventory.money = 99999; inventory.hasAxe = true; inventory.hasPickaxe = true;
             inventory.upg[0] = 2; inventory.upg[2] = 1; inventory.upg[3] = 1;
@@ -187,6 +229,12 @@ int main(int argc, char** argv) {
         if (shotBag) {                                          // verifică inventarul
             for (int f = 0; f < 14; f++) { inventory.unlocked[f] = true; inventory.seeds[f] = 9; }
             bagOpen = true;
+        }
+        if (shotSudoku) { sudoku.DebugStart(1); scene = Scene::Sudoku; }
+        if (shotSell) {
+            for (int i = 0; i < Inventory::FoodCount; i++) inventory.food[i] = 12 + i*7;
+            inventory.harvested[0] = 8; inventory.harvested[15] = 14; inventory.harvested[12] = 3; inventory.harvested[17] = 20;
+            sellOpen = true;
         }
     }
 
@@ -199,10 +247,12 @@ int main(int argc, char** argv) {
         inventory.hasAxe = inventory.hasPickaxe = true;
         for (int i = 0; i < Inventory::UpgCount; i++)    inventory.upg[i] = Inventory::UpgMax;
         for (int i = 0; i < Inventory::AnimalCount; i++) inventory.animals[i] = 5;
+        for (int i = 0; i < Inventory::FoodCount; i++) inventory.food[i] = 20;   // alimente de vândut
         int hb[6] = { 0, 15, 16, 17, 12, 13 };           // hotbar variat (floare, grâu, legume, soare, copac)
         for (int i = 0; i < 6; i++) inventory.hotbar[i] = hb[i];
         inventory.selectedSlot = 0; inventory.SyncSelected();
-        inventory.wood = 999; inventory.crystals = 999; inventory.roadCount = 99; inventory.stoneCount = 99;
+        inventory.wood = 999; inventory.crystals = 999;
+        for (int i = 0; i < Inventory::BuildMatCount; i++) inventory.buildMat[i] = 99;
         for (int pr = 0; pr < TileMap::PlotRows; pr++)
             for (int pc = 0; pc < TileMap::PlotCols; pc++) map.BuyPlot(pc, pr);
         world.Generate(map); world.PopulateOwnedPlots(map);
@@ -385,10 +435,32 @@ int main(int argc, char** argv) {
             continue;
         }
 
+        // ===== SCENA SUDOKU (minigame la han) =====
+        if (scene == Scene::Sudoku) {
+            if (sudoku.Update()) { scene = Scene::World; player.position = worldReturnPos; }
+            if (sudoku.TakeWinReward()) inventory.money += 500;
+            BeginDrawing();
+            sudoku.Draw(flowerTex);
+            EndDrawing();
+            if (shotMode) { if (++shotFrame == 20) TakeScreenshot("shot.png"); if (shotFrame >= 21) break; }
+            continue;
+        }
+
         // ===== SCENA LUMII (top-down) =====
         shop.SetAnimalsUnlocked(map.PenOwned());   // animalele necesită țarcul cumpărat
         shop.HandleInput(inventory, player);
         bool frozen = shop.BlocksGameplay();
+
+        // PLOAIE: aleatorie din când în când; udă plantele și le grăbește mult creșterea
+        if (rainTimer > 0) rainTimer -= dt;
+        else {
+            rainCheckTimer += dt;
+            if (rainCheckTimer >= 150.0f) {        // verifică la ~2.5 min
+                rainCheckTimer = 0.0f;
+                if (GetRandomValue(0, 100) < 35) rainTimer = (float)GetRandomValue(70, 130);
+            }
+        }
+        bool raining = rainTimer > 0;
 
         // comutarea modului hartă (cumpărat teren) — deblocat de la un nivel
         if (!frozen && IsKeyPressed(KEY_L)) {
@@ -424,7 +496,8 @@ int main(int argc, char** argv) {
         if (!frozen && !landMode && !storageOpen && nearPowerup >= 0 && IsKeyPressed(KEY_E)) {
             if (inventory.money >= powerups[nearPowerup].cost) {
                 inventory.money -= powerups[nearPowerup].cost;
-                inventory.AddBuff(powerups[nearPowerup].buff, BuffDuration);
+                if (powerups[nearPowerup].buff == 5) rainTimer = 600.0f;   // ploaie 10 min
+                else inventory.AddBuff(powerups[nearPowerup].buff, BuffDuration);
             }
         }
 
@@ -447,9 +520,10 @@ int main(int argc, char** argv) {
             !inventory.levelUpPending && IsKeyPressed(KEY_I))
             bagOpen = !bagOpen;
         if (bagOpen && IsKeyPressed(KEY_ESCAPE)) { bagOpen = false; dragFlower = -1; }
+        if (sellOpen && IsKeyPressed(KEY_ESCAPE)) sellOpen = false;
 
-        bool blockGameplay = frozen || landMode || storageOpen ||
-                             memories.NoteOpen() || inventory.levelUpPending || bagOpen;
+        bool blockGameplay = frozen || landMode || storageOpen || memories.NoteOpen() ||
+                             inventory.levelUpPending || bagOpen || sellOpen;
 
         Vector2 mw = GetScreenToWorld2D(GetMousePosition(), camera);
         int tx = (int)floorf(mw.x / TS), ty = (int)floorf(mw.y / TS);
@@ -459,6 +533,12 @@ int main(int argc, char** argv) {
 
         bool nearMarket = (fabsf(player.position.x - marketSpot.x) < 48 &&
                            fabsf(player.position.y - (marketSpot.y - 24)) < 48);
+        bool nearInn = (fabsf(player.position.x - innSpot.x) < 64 &&
+                        fabsf(player.position.y - innSpot.y) < 80);
+        int nearNpc = -1;
+        for (int i = 0; i < 3; i++)
+            if (fabsf(player.position.x - npcPos[i].x) < 42 &&
+                fabsf(player.position.y - npcPos[i].y) < 52) { nearNpc = i; break; }
 
         // parcela de sub maus (în modul hartă)
         int hpc = (int)floorf(mw.x / (TileMap::PlotW * TS));
@@ -475,6 +555,11 @@ int main(int argc, char** argv) {
                 map.BuyPlot(hpc, hpr);
                 int theme = map.PlotTheme(hpc, hpr);
                 world.PopulatePlot(hpc, hpr, theme, map);       // surpriza: resurse pe parcelă
+                // ORAȘUL se deblochează tot odată (col 6-8, rândul 5)
+                if (hpr == 5 && hpc >= 6)
+                    for (int pc = 6; pc <= 8; pc++) if (!map.PlotOwned(pc, 5)) {
+                        map.BuyPlot(pc, 5); world.PopulatePlot(pc, 5, map.PlotTheme(pc, 5), map);
+                    }
                 inventory.AddXP(15);
                 // recompensă imediată în funcție de temă
                 const char* rw;
@@ -515,18 +600,17 @@ int main(int argc, char** argv) {
 
             player.speed = (inventory.BuffActive(0) ? 200.0f : 130.0f) * inventory.MoveMul();  // viteză + upgrade
             farm.SetGrowMul(inventory.GrowMul() * inventory.GardenMul());   // dificultate + upgrade grădinărit
-            farm.Update(dt, inventory.BuffActive(1), inventory.BuffActive(2));
+            farm.Update(dt, inventory.BuffActive(1) || raining, inventory.BuffActive(2) || raining);   // ploaia udă + grăbește
             world.Update(dt);
             inventory.TickTime(dt);
             inventory.UpdateBuffs(dt);
 
-            // B: intră / ciclează modul construire (dacă ai materiale cumpărate)
+            // B: intră / ciclează modul construire (printre materialele pe care le ai)
             if (IsKeyPressed(KEY_B)) {
-                if (inventory.buildSel == 0) {
-                    if (inventory.roadCount > 0) inventory.buildSel = 1;
-                    else if (inventory.stoneCount > 0) inventory.buildSel = 2;
-                } else if (inventory.buildSel == 1 && inventory.stoneCount > 0) inventory.buildSel = 2;
-                else inventory.buildSel = 0;
+                int s = inventory.buildSel;
+                do { s = (s + 1) % (Inventory::BuildMatCount + 1); }
+                while (s != 0 && inventory.buildMat[s-1] == 0);
+                inventory.buildSel = s;
             }
 
             if (nearMarket && IsKeyPressed(KEY_E)) {           // intră în market
@@ -535,13 +619,23 @@ int main(int argc, char** argv) {
                 scene = Scene::Market;
                 digTx = -1; digProgress = 0;
             }
+            else if (nearInn && IsKeyPressed(KEY_E)) {         // intră la han → SUDOKU
+                worldReturnPos = player.position;
+                sudoku.Enter();
+                scene = Scene::Sudoku;
+                digTx = -1; digProgress = 0;
+            }
+            else if (nearNpc >= 0 && IsKeyPressed(KEY_E)) {    // negustor → vinde alimente/recolte
+                sellOpen = true; digTx = -1; digProgress = 0;
+            }
             else if (inventory.buildSel != 0) {                // MOD CONSTRUIRE
                 if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) inventory.buildSel = 0;
-                else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && inRange) {
-                    if (inventory.buildSel == 1 && inventory.roadCount > 0) {
-                        map.Place(tx, ty, Terrain::Dirt);  inventory.roadCount--;
-                    } else if (inventory.buildSel == 2 && inventory.stoneCount > 0) {
-                        map.Place(tx, ty, Terrain::Wall);  inventory.stoneCount--;
+                else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && inRange) {
+                    int mat = inventory.buildSel - 1;
+                    if (mat >= 0 && mat < Inventory::BuildMatCount && inventory.buildMat[mat] > 0
+                        && map.At(tx, ty) != BuildTerrainFor(mat)) {   // nu irosi pe același tile
+                        map.Place(tx, ty, BuildTerrainFor(mat));
+                        inventory.buildMat[mat]--;
                     }
                 }
                 digTx = -1; digProgress = 0;
@@ -628,7 +722,7 @@ int main(int argc, char** argv) {
                 SaveIO::Save(savePath.c_str(), inventory, shop, farm, map, memories, player.position);
         }
 
-        if (shotMode) { camera.target = { 24.0f*TS, 26.0f*TS }; camera.zoom = 0.85f; }
+        if (shotMode) { camera.target = { 7.5f*TS, 43.0f*TS }; camera.zoom = 1.5f; }
 
         BeginDrawing();
         ClearBackground(Color{ 40, 90, 50, 255 });
@@ -673,8 +767,16 @@ int main(int argc, char** argv) {
                     { powerups[i].pos.x, powerups[i].pos.y, w, h }, { w/2, h }, 0, WHITE);
             }
         };
+        auto drawNpcs = [&](bool front){   // negustori (cadrul frontal, ca jucătorul)
+            for (int i = 0; i < 3; i++) {
+                if ((npcPos[i].y > pFeet) != front) continue;
+                DrawTexturePro(npcTex[i], { 0,0,32,32 },
+                    { npcPos[i].x, npcPos[i].y, 56, 56 }, { 28, 46 }, 0, WHITE);
+            }
+        };
         world.DrawBehind(pFeet);
         if (!landMode) ambient.DrawAnimals(pFeet, false);    // animale în spatele jucătorului
+        if (!landMode) drawNpcs(false);
         if (marketSpot.y <= pFeet) drawSign();
         if (chestSpot.y  <= pFeet) drawChest();
         drawPowerups(false);
@@ -682,6 +784,7 @@ int main(int argc, char** argv) {
         if (marketSpot.y > pFeet) drawSign();
         if (chestSpot.y  > pFeet) drawChest();
         drawPowerups(true);
+        if (!landMode) drawNpcs(true);
         world.DrawFront(pFeet);
         if (!landMode) ambient.DrawAnimals(pFeet, true);     // animale în fața jucătorului
         if (!landMode) ambient.DrawCritters();     // albine/fluturi (deasupra)
@@ -705,9 +808,27 @@ int main(int argc, char** argv) {
         }
         EndMode2D();
 
+        // PLOAIE (peste lume): voal umed + dâre diagonale
+        if (raining && !landMode) {
+            DrawRectangle(0, 0, screenW, screenH, Color{ 60, 80, 110, 30 });
+            float t = (float)GetTime();
+            for (int i = 0; i < 170; i++) {
+                float rx = (float)((i * 89) % screenW);
+                float ry = fmodf(i * 47 + t * 950.0f, (float)(screenH + 24)) - 12;
+                DrawLineEx(Vector2{ rx, ry }, Vector2{ rx - 6, ry + 16 }, 2, Color{ 180, 205, 240, 130 });
+            }
+        }
+
         // HUD
         inventory.Draw(flowerTex, iconTex);
         inventory.DrawLevel(farm.CropCount());
+        if (raining && !landMode) {
+            int s = (int)rainTimer;
+            const char* m = TextFormat("Ploaie  %d:%02d", s/60, s%60);
+            int mw = MeasureText(m, 18);
+            DrawRectangle(screenW/2 - mw/2 - 10, 8, mw + 20, 26, Color{ 30, 45, 70, 200 });
+            DrawText(m, screenW/2 - mw/2, 11, 18, Color{ 185, 215, 245, 255 });
+        }
 
         if (landMode) {
             DrawRectangle(0, 0, screenW, 38, Color{ 0,0,0,150 });
@@ -740,9 +861,9 @@ int main(int argc, char** argv) {
             DrawText(m, screenW/2 - w/2, 66, 20, Color{ 255, 200, 150, 255 });
         }
         if (inventory.buildSel != 0 && !landMode) {
-            const char* bm = (inventory.buildSel == 1)
-                ? TextFormat("CONSTRUIESTI: Drum (%d) - click pune, B/dreapta iesi", inventory.roadCount)
-                : TextFormat("CONSTRUIESTI: Piatra (%d) - click pune, B/dreapta iesi", inventory.stoneCount);
+            int mat = inventory.buildSel - 1;
+            const char* bm = TextFormat("CONSTRUIESTI: %s (%d) - tine click pune, B schimba, dreapta iesi",
+                                        Inventory::BuildName(mat), inventory.buildMat[mat]);
             int w = MeasureText(bm, 20);
             DrawRectangle(screenW/2 - w/2 - 12, 96, w + 24, 32, Color{ 0,0,0,170 });
             DrawText(bm, screenW/2 - w/2, 102, 20, Color{ 255, 230, 150, 255 });
@@ -752,6 +873,18 @@ int main(int argc, char** argv) {
             int w = MeasureText(m, 22);
             DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,160 });
             DrawText(m, screenW/2 - w/2, 66, 22, WHITE);
+        }
+        if (nearInn && !blockGameplay) {
+            const char* m = "[E] Joaca Sudoku cu flori";
+            int w = MeasureText(m, 22);
+            DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,170 });
+            DrawText(m, screenW/2 - w/2, 66, 22, Color{ 255, 200, 220, 255 });
+        }
+        if (nearNpc >= 0 && !blockGameplay) {
+            const char* m = "[E] Vinde la negustor";
+            int w = MeasureText(m, 22);
+            DrawRectangle(screenW/2 - w/2 - 12, 60, w + 24, 34, Color{ 0,0,0,170 });
+            DrawText(m, screenW/2 - w/2, 66, 22, Color{ 255, 230, 150, 255 });
         }
         if (nearChest && !blockGameplay) {
             const char* m = "[E] Depozit de seminte";
@@ -931,6 +1064,66 @@ int main(int argc, char** argv) {
                     Rectangle{ mp.x-20, mp.y-20, 40, 40 }, {0,0}, 0, WHITE);
         }
 
+        // NEGUSTOR — vinde alimente (de la animale) + recolte (flori/legume)
+        if (sellOpen) {
+            DrawRectangle(0, 0, screenW, screenH, Color{ 0,0,0,175 });
+            int pw = 620, ph = 440, px = screenW/2 - pw/2, py = screenH/2 - ph/2;
+            DrawRectangle(px, py, pw, ph, Color{ 38,28,20,248 });
+            DrawRectangleLinesEx(Rectangle{ (float)px,(float)py,(float)pw,(float)ph }, 3, Color{ 255,220,90,255 });
+            DrawText("NEGUSTOR", px + 16, py + 12, 24, Color{ 255,220,90,255 });
+            DrawText("Click pe un produs ca sa-l vinzi.  ESC inchide.", px + 200, py + 18, 14, Color{ 200,200,180,255 });
+
+            Vector2 sm = GetMousePosition();
+            bool sclick = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+            long long totalValue = 0;
+
+            // ALIMENTE (stânga)
+            DrawText("Alimente", px + 24, py + 50, 18, Color{ 230,230,200,255 });
+            for (int i = 0; i < Inventory::FoodCount; i++) {
+                int ry = py + 76 + i * 34;
+                int price = Inventory::FoodPrice(i), qty = inventory.food[i];
+                Rectangle r{ (float)(px+18), (float)ry-2, 260, 30 };
+                if (qty > 0) totalValue += (long long)qty * price;
+                bool hov = qty > 0 && CheckCollisionPointRec(sm, r);
+                if (hov) DrawRectangleRec(r, Color{ 255,255,255,28 });
+                Color tc = qty > 0 ? WHITE : Color{ 120,120,110,255 };
+                DrawText(TextFormat("%-8s x%-3d  @%d = %d", Inventory::FoodName(i), qty, price, qty*price),
+                         px + 24, ry, 17, tc);
+                if (hov && sclick) { inventory.money += qty * price; inventory.food[i] = 0; }
+            }
+
+            // RECOLTE (dreapta) — doar cele cu cantitate
+            DrawText("Recolte", px + 330, py + 50, 18, Color{ 230,230,200,255 });
+            int rcRow = 0;
+            for (int f = 0; f < (int)Flower::COUNT; f++) {
+                if (inventory.harvested[f] <= 0) continue;
+                int ry = py + 76 + rcRow * 32; rcRow++;
+                if (rcRow > 10) break;
+                int price = inventory.CurrentSell(f), qty = inventory.harvested[f];
+                totalValue += (long long)qty * price;
+                Rectangle r{ (float)(px+326), (float)ry-2, 276, 28 };
+                bool hov = CheckCollisionPointRec(sm, r);
+                if (hov) DrawRectangleRec(r, Color{ 255,255,255,28 });
+                const FlowerInfo& fi = FLOWERS[f];
+                DrawTexturePro(flowerTex[fi.tex], fi.r2, Rectangle{ (float)(px+328), (float)ry-2, 24, 24 }, {0,0}, 0, WHITE);
+                DrawText(TextFormat("%s x%d  @%d", fi.name, qty, price), px + 356, ry, 14, WHITE);
+                if (hov && sclick) { inventory.money += qty * price; inventory.harvested[f] = 0; }
+            }
+            if (rcRow == 0) DrawText("(nimic recoltat inca)", px + 330, py + 80, 14, Color{ 180,170,150,255 });
+
+            // VINDE TOT
+            Rectangle allR{ (float)(px + pw/2 - 120), (float)(py + ph - 56), 240, 38 };
+            bool ah = CheckCollisionPointRec(sm, allR);
+            DrawRectangleRec(allR, ah ? Color{ 90,70,45,255 } : Color{ 55,45,30,255 });
+            DrawRectangleLinesEx(allR, 2, Color{ 255,220,90,255 });
+            DrawText(TextFormat("VINDE TOT  (%lld bani)", totalValue),
+                     (int)allR.x + 18, (int)allR.y + 10, 18, Color{ 255,235,150,255 });
+            if (ah && sclick) {
+                for (int i = 0; i < Inventory::FoodCount; i++) { inventory.money += inventory.food[i]*Inventory::FoodPrice(i); inventory.food[i] = 0; }
+                for (int f = 0; f < (int)Flower::COUNT; f++) { inventory.money += inventory.harvested[f]*inventory.CurrentSell(f); inventory.harvested[f] = 0; }
+            }
+        }
+
         EndDrawing();
 
         if (shotMode) {
@@ -945,6 +1138,7 @@ int main(int argc, char** argv) {
                      (scene == Scene::Market) ? worldReturnPos : player.position);
 
     ambient.Unload();
+    for (int i = 0; i < 3; i++) UnloadTexture(npcTex[i]);
     market.Unload();
     UnloadTexture(suppliesTex);
     UnloadTexture(chestTex);
